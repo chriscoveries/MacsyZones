@@ -384,6 +384,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sen
     
     func createTrayIcon() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let bundleIdentifier = Bundle.main.bundleIdentifier ?? "com.macsyzones.MacsyZones"
+        statusItem.autosaveName = "\(bundleIdentifier).statusItem"
         
         if let button = statusItem?.button {
             if let image = NSImage(named: "MenuBarIcon") {
