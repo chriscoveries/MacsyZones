@@ -9,6 +9,11 @@ commit="$(git -C "$ROOT" rev-parse --verify "$ref^{commit}")"
 mkdir -p "$ROOT/.local/reports" "$ROOT/.local/releases"
 scratch="$(mktemp -d "$ROOT/.local/build.XXXXXX")"
 cleanup() {
+    # Older Xcode versions may still register products despite the build setting.
+    if [[ -d "$scratch/DerivedData.noindex/Build/Products/Release/MacsyZones.app" ]]; then
+        /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+            -u "$scratch/DerivedData.noindex/Build/Products/Release/MacsyZones.app" >/dev/null 2>&1 || true
+    fi
     case "$scratch" in "$ROOT"/.local/build.*) rm -rf -- "$scratch";; esac
 }
 trap cleanup EXIT
@@ -22,7 +27,7 @@ fi
 if ! xcodebuild -project "$scratch/source/MacsyZones.xcodeproj" -scheme MacsyZones \
     -configuration Release -destination 'generic/platform=macOS' \
     -derivedDataPath "$scratch/DerivedData.noindex" \
-    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+    CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO REGISTER_WITH_LAUNCH_SERVICES=NO \
     PRODUCT_BUNDLE_IDENTIFIER="$bundle_id" build >"$log" 2>&1; then
     tail -n 60 "$log" >&2
     exit 1

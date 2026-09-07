@@ -200,6 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sen
         
         checkIfRunning()
         if !appUpdater.supportsInAppUpdates,
+           Bundle.main.bundleURL.standardizedFileURL.path == "/Applications/MacsyZones.app",
            ProcessInfo.processInfo.arguments.contains("--enable-start-at-login"),
            #available(macOS 13.0, *) {
             do {
