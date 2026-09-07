@@ -12,6 +12,7 @@
 
 import Foundation
 import SwiftUI
+import ServiceManagement
 
 let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
 let appBuild = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
@@ -198,6 +199,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sen
         NSApp.setActivationPolicy(.prohibited)
         
         checkIfRunning()
+        if !appUpdater.supportsInAppUpdates,
+           ProcessInfo.processInfo.arguments.contains("--enable-start-at-login"),
+           #available(macOS 13.0, *) {
+            do {
+                try SMAppService.mainApp.register()
+                debugLog("Registered maintained fork to start at login")
+            } catch {
+                debugLog("Could not register maintained fork at login: \(error)")
+            }
+        }
         createTrayIcon()
         setupPopover()
         checkAccessibilityPermission()

@@ -6,3 +6,7 @@ build/
 buildServer.json
 *.code-workspace
 .compile
+.local/
+.v2c/
+.video_agent/
+out/
