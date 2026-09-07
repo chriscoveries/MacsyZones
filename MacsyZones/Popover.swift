@@ -707,7 +707,10 @@ struct Main: View {
             HStack {
                 Button(action: { updater.checkForUpdates() }) {
                     HStack {
-                        if updater.isChecking {
+                        if !updater.supportsInAppUpdates {
+                            Image(systemName: "checkmark.shield")
+                            Text("Updates managed by your fork")
+                        } else if updater.isChecking {
                             Image(systemName: "arrow.clockwise.circle")
                             Text("Checking...")
                         } else if updater.isDownloading {
@@ -722,7 +725,7 @@ struct Main: View {
                         }
                     }
                 }
-                .disabled(updater.isChecking || updater.isDownloading)
+                .disabled(!updater.supportsInAppUpdates || updater.isChecking || updater.isDownloading)
                 
                 Button(action: {
                     showResetToDefaultsDialog = true

@@ -359,6 +359,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sen
     }
     
     func checkUpdateState() {
+        guard appUpdater.supportsInAppUpdates else { return }
+
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
         
         if updateState.hasFailedUpdate(currentVersion: currentVersion) {
