@@ -11,7 +11,7 @@ reported status checks. Mergeability is not a test result.
 | [#104 Avoid loading layout windows twice at launch](https://github.com/rohanrhu/MacsyZones/pull/104) | `fix/avoid-duplicate-layout-load` | Draft | Small startup fix; overlaps the duplicate-load removal included in #106. |
 | [#105 Make automatic support reminders non-intrusive](https://github.com/rohanrhu/MacsyZones/pull/105) | `feat/nonintrusive-support-reminders` | Draft | Optional automatic reminders; verify enabled/disabled behavior and persistence. |
 | [#106 Lazily materialize layout windows](https://github.com/rohanrhu/MacsyZones/pull/106) | `fix/lazy-layout-memory` | Open, non-draft | Broader window lifecycle changes; current UI smoke coverage remains a release gate. |
-| [#107 Release QuickSnapper content when closed](https://github.com/rohanrhu/MacsyZones/pull/107) | `fix/release-quicksnapper-content` | Open, non-draft | Reclaim closed content; review queued hotkey callbacks and reopen behavior after teardown. |
+| [#107 Release QuickSnapper content when closed](https://github.com/rohanrhu/MacsyZones/pull/107) | `fix/release-quicksnapper-content` | Open, non-draft | Follow-up `69f1019` fixes queued hotkeys and close/reopen races; Release and 33 execution assertions pass; real keyboard/panel QA remains. |
 
 ## Integration order
 
@@ -69,6 +69,9 @@ registration workflow, packaging scripts, and fork documentation belong on
 `upstream/main`, rather than the earlier combined local build. It passed a clean
 Release build at `8d372c1`. [Draft PR text](pr-status-item.md) describes the precise
 scope without claiming this alone repairs every missing icon.
+This branch and `local/maintained` have been pushed to the user's fork; installed
+source tags are also pushed. An upstream PR for the status-item change has not
+yet been opened.
 
 ```sh
 git push origin fix/tahoe-status-item-identity

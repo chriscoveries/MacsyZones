@@ -34,6 +34,7 @@ source; compare the embedded tree with `git rev-parse HEAD:MacsyZones`.
 | #104 duplicate layout load | `4af86df75102cacc258dbb1eaa878a6c74ccf533` | Release passed |
 | #105 support reminders | `15ed0c2cf5d48000a771d66ea4ae80450e0aeb22` | Release passed |
 | #106 lazy layout lifecycle | `c57c6cb7d764df06f7a5a9d744d205297b15d751` | Release and 139 model assertions passed |
+| #107 QuickSnapper follow-up | `69f1019032cf5e30ae16f4e934ee49393e8903f0` | Release and 33 executable assertions passed |
 | Stable status-item identity, separate branch | `8d372c1aa4a68671855eec955e4ef350474ab7f1` | Release passed |
 
 `scripts/check_lazy_lifecycle.sh fix/lazy-layout-memory` compiles the actual
@@ -44,8 +45,18 @@ It does not launch an app, access user settings, or test AppKit rendering,
 real window ownership, snapping, or multiple monitors.
 
 The first review found that #107's immediate array clear could crash queued
-hotkey callbacks. A corrective commit and executable regression tests are being
-prepared on that PR's branch; its final evidence belongs in `PULL_REQUESTS.md`.
+hotkey callbacks. Follow-up `69f1019` guards window selection, queues snapping on
+the main actor, prevents closed layout hotkeys from changing layouts, and uses
+generation checks for animation completion and hotkey registration. The second
+review caught the closed Left/Right path; that was fixed before the final build.
+
+`scripts/check_quicksnapper_lifecycle.sh` on the QuickSnapper branch executes
+nine actual production methods and the actual queued Left/Right callback bodies
+against deterministic fake panel/animation/delay collaborators. All 33
+assertions passed, including empty/closed selection, bounds, wraparound, stale
+close completion, stale delayed layout show, and preservation of reopened
+content. Supplemental scoped wiring checks cover asynchronous registration and
+Enter/Escape guards. These tests do not replace a real panel/keyboard UI pass.
 
 ## Build and repository hygiene
 
