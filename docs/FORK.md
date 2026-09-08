@@ -1,7 +1,7 @@
 # Maintained fork
 
 The canonical source is `/Users/chrisd/Documents/MacsyZonesFork`, on
-`local/maintained`. The only installed app belongs at
+`local/maintained`, the fork's default branch. The only installed app belongs at
 `/Applications/MacsyZones.app`. `origin` points to
 <https://github.com/eafire15/MacsyZones>; `upstream` points to
 <https://github.com/rohanrhu/MacsyZones>. Keep upstream contributions on the

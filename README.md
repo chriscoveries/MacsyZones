@@ -1,5 +1,10 @@
 # MacsyZones
 
+> This is the maintained `eafire15/MacsyZones` fork. Start with the
+> [fork and installation guide](docs/FORK.md), [upstream PR map](docs/PULL_REQUESTS.md),
+> and [validation record](docs/VALIDATION.md). The maintained branch is
+> `local/maintained`; upstream contributions remain on separate focused branches.
+
 [![GitHub release](https://img.shields.io/github/release/rohanrhu/MacsyZones.svg?style=flat-square&color=informational)](https://github.com/rohanrhu/MacsyZones/releases)
 [![GitHub stars](https://img.shields.io/github/stars/rohanrhu/MacsyZones?style=flat-square)](https://github.com/rohanrhu/MacsyZones/stargazers)
 [![Support me on Patreon](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fshieldsio-patreon.vercel.app%2Fapi%3Fusername%3DEvrenselKisilik%26type%3Dpatrons&style=flat-square)](https://patreon.com/EvrenselKisilik)
