@@ -1,15 +1,23 @@
-# Give the menu-bar item a stable autosave identifier
+Thank you for creating and maintaining MacsyZones. While investigating menu-bar
+behavior on Tahoe, I found this small change that may be useful independently
+of my local recovery steps. I hope it helps make the status item's saved state
+more explicit.
 
-MacsyZones currently lets AppKit assign an automatic name to its status item.
-Set `NSStatusItem.autosaveName` to a stable value derived from the bundle ID so
-position and visibility persistence have an explicit namespace for each app
-identity. The change is two lines in `createTrayIcon()`.
+### Change
 
-This does not change the product bundle ID, reset preferences, override the
-user's menu-bar visibility setting, or repair Control Center's private state.
-A local Tahoe recovery used a new bundle identity as well as this change;
-that recovery is not evidence that the autosave-name change alone fixes every
-missing-icon issue.
+Set `NSStatusItem.autosaveName` to a stable value derived from the app's bundle
+identifier. This is a two-line addition in `createTrayIcon()` that gives each
+app identity an explicit namespace for its status-item persistence.
 
-Validation: unsigned Release build passed on Xcode 26.6 at
-`8d372c1aa4a68671855eec955e4ef350474ab7f1`.
+### Scope and validation
+
+- Release build passed at `8d372c1`, using Xcode 26.6 with signing disabled.
+- This does not change the product bundle ID, reset preferences, override the
+  user's visibility choice, or modify Control Center's private state.
+- My local missing-icon recovery also involved a fresh bundle identity. That
+  recovery is not evidence that this two-line change alone fixes missing icons.
+- This is proposed as a small persistence improvement, not a general Tahoe
+  menu-bar repair.
+
+Thanks for taking a look. If there is a preferred autosave naming convention or
+compatibility concern, I'm happy to adjust it.

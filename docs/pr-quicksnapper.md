@@ -1,24 +1,36 @@
-Closing QuickSnapper retains its last window list, accessibility references and
-SwiftUI content graph. This change releases the model's list on close and releases
-the hosting view when the fade completes.
+Thank you for the work behind MacsyZones and QuickSnapper. I hope this change
+helps release some content that no longer needs to stay around after the panel
+closes, while keeping the close/reopen interaction reliable.
 
-The teardown also guards asynchronous work: queued selection and snap callbacks
-ignore an empty or closed panel, layout hotkeys ignore a closed panel, and generation
-checks stop an old close completion or delayed layout presentation from changing a
-newly reopened panel. Deferred hotkey registration/unregistration uses the same
-generation check. Snapping hotkeys deliver their work on the main actor.
+### Change
 
-Validation at `69f1019032cf5e30ae16f4e934ee49393e8903f0`:
+The panel's window list is cleared on close, and its hosting view is released
+when the fade finishes. The follow-up also handles asynchronous work that can
+arrive during teardown:
 
-- Unsigned Release build passed with Xcode 26.6.
-- `scripts/check_quicksnapper_lifecycle.sh` passed 33 executable assertions using
-  actual production methods with deterministic UI collaborators. It covers
-  closed/empty selection, index clamping, wraparound, stale animation/delay
-  callbacks, reopened content preservation and closed layout hotkeys.
-- Additional wiring checks verify generation guards on deferred registration
-  and open-state guards for Enter/Escape.
-- This current validation did not launch an app. Real keyboard/panel interaction
-  remains a manual QA check; the model tests do not claim to measure AppKit memory.
+- Selection and snapping ignore empty or closed panels and clamp stale indices.
+- Layout hotkeys ignore a closed panel.
+- Generation checks prevent an old fade completion or delayed layout display
+  from altering a newly reopened panel.
+- Deferred hotkey registration and unregistration use the same generation check.
+- Snapping hotkeys deliver their work on the main actor.
 
-The change is independent of the lazy-layout, dwell-animation and support-reminder
-PRs. It does not change shortcuts or the persisted settings format.
+The fade is preserved. This does not change shortcuts or the persisted settings
+format and is independent of the lazy-layout and other optimization PRs.
+
+### Validation and remaining checks
+
+At `69f1019`:
+
+- Release build passed with Xcode 26.6 and signing disabled.
+- The included `scripts/check_quicksnapper_lifecycle.sh` passed 33 executable
+  assertions using production methods and deterministic collaborators.
+- Coverage includes closed/empty selection, bounds, wrapping, stale callbacks,
+  preservation of reopened content, and closed layout hotkeys.
+- Supplemental wiring checks cover deferred registration and Enter/Escape guards.
+
+These checks did not launch an app or measure AppKit memory. A real keyboard and
+panel close/reopen pass remains before treating the change as fully validated.
+
+Thanks for reviewing it. I'm happy to adjust the teardown strategy if there is
+a lifecycle convention you'd prefer to keep here.

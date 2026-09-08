@@ -9,8 +9,8 @@ reported status checks. Mergeability is not a test result.
 | --- | --- | --- | --- |
 | [#103 Stop layout switcher animation after dwell](https://github.com/rohanrhu/MacsyZones/pull/103) | `fix/layout-switcher-idle-cpu` | Draft | Stop hidden/dwell animation work; verify dwell completion and repeated opening. |
 | [#104 Avoid loading layout windows twice at launch](https://github.com/rohanrhu/MacsyZones/pull/104) | `fix/avoid-duplicate-layout-load` | Draft | Small startup fix; overlaps the duplicate-load removal included in #106. |
-| [#105 Make automatic support reminders non-intrusive](https://github.com/rohanrhu/MacsyZones/pull/105) | `feat/nonintrusive-support-reminders` | Draft | Optional automatic reminders; verify enabled/disabled behavior and persistence. |
-| [#106 Lazily materialize layout windows](https://github.com/rohanrhu/MacsyZones/pull/106) | `fix/lazy-layout-memory` | Open, non-draft | Broader window lifecycle changes; current UI smoke coverage remains a release gate. |
+| [#105 Make automatic support reminders non-intrusive](https://github.com/rohanrhu/MacsyZones/pull/105) | `feat/nonintrusive-support-reminders` | Draft | Release and 87 production-source assertions pass at `476a11b`; real UI and disk persistence remain. |
+| [#106 Lazily materialize layout windows](https://github.com/rohanrhu/MacsyZones/pull/106) | `fix/lazy-layout-memory` | Open, non-draft | Release and 139 assertions pass at `03f67f1`; tests are included in the PR; real UI smoke coverage remains a release gate. |
 | [#107 Release QuickSnapper content when closed](https://github.com/rohanrhu/MacsyZones/pull/107) | `fix/release-quicksnapper-content` | Open, non-draft | Follow-up `69f1019` fixes queued hotkeys and close/reopen races; Release and 33 execution assertions pass; real keyboard/panel QA remains. |
 
 ## Integration order
@@ -62,6 +62,26 @@ checks that remain. Draft/non-draft status should reflect that evidence.
 The maintained bundle ID, signing configuration, update protection, local login
 registration workflow, packaging scripts, and fork documentation belong on
 `local/maintained`. They are not part of these optimization PRs.
+
+## PR descriptions
+
+Keep the upstream descriptions polite and appreciative, with measured results
+distinguished from model tests and remaining UI checks. The maintained copies are:
+
+| PR | Description |
+| --- | --- |
+| #103 | [Dwell animation](pr-dwell-animation.md) |
+| #104 | [Duplicate startup load](pr-duplicate-load.md) |
+| #105 | [Support reminders](pr-support-reminders.md) |
+| #106 | [Lazy layouts](pr-lazy-layouts.md) |
+| #107 | [QuickSnapper](pr-quicksnapper.md) |
+| Prepared status-item change | [Status-item identity](pr-status-item.md) |
+
+Update the existing PR body with `gh pr edit NUMBER --repo rohanrhu/MacsyZones
+--body-file docs/FILE.md` after verifying its source SHA and test evidence.
+Changing a description does not promote a draft, complete a missing UI test,
+or create another PR. Do not claim historical combined-build measurements as
+fresh validation of a standalone PR revision.
 
 ## Additional prepared branch
 

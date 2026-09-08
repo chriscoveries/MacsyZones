@@ -32,17 +32,34 @@ source; compare the embedded tree with `git rev-parse HEAD:MacsyZones`.
 | --- | --- | --- |
 | #103 bounded dwell animation | `4d30fcfc1ffdcbe46157eb7e2894946387832271` | Release passed |
 | #104 duplicate layout load | `4af86df75102cacc258dbb1eaa878a6c74ccf533` | Release passed |
-| #105 support reminders | `15ed0c2cf5d48000a771d66ea4ae80450e0aeb22` | Release passed |
-| #106 lazy layout lifecycle | `c57c6cb7d764df06f7a5a9d744d205297b15d751` | Release and 139 model assertions passed |
+| #105 support reminders | `476a11b9a36594f03630f42e8fcd2180d167c963` | Release and 87 production-source assertions passed |
+| #106 lazy layout lifecycle | `03f67f19f13b78b85a8c534ba5eab6602bb4b34a` | Release and 139 model assertions passed |
 | #107 QuickSnapper follow-up | `69f1019032cf5e30ae16f4e934ee49393e8903f0` | Release and 33 executable assertions passed |
 | Stable status-item identity, separate branch | `8d372c1aa4a68671855eec955e4ef350474ab7f1` | Release passed |
 
-`scripts/check_lazy_lifecycle.sh fix/lazy-layout-memory` compiles the actual
-`UserLayout` class and editing functions taken from that Git revision against
-Foundation-only fake window collaborators. It tests cold allocation, nonallocating
-hide/stop-editing paths, lazy graph reuse, and configuration propagation.
-It does not launch an app, access user settings, or test AppKit rendering,
-real window ownership, snapping, or multiple monitors.
+On #106, `bash scripts/check_lazy_lifecycle.sh` now tests the checked-out
+`UserLayout` class and editing functions against Foundation-only fake window
+collaborators. All 139 assertions pass for cold allocation, nonallocating
+hide/stop-editing paths, graph reuse and configuration propagation. A missing
+`stopEditing` fixture was rejected before Swift execution. The maintained
+branch's older revision-selecting runner remains available separately as
+`scripts/check_lazy_lifecycle.sh fix/lazy-layout-memory`. Neither runner launches
+an app, accesses settings, or tests AppKit rendering, real window ownership,
+snapping or multiple monitors.
+
+On #105, `bash scripts/check_support_reminders.sh` passes 87 assertions using
+the actual reminder lifecycle and complete settings schema/load/save/reset
+implementation. It substitutes an in-memory panel, queued scheduler and storage;
+only the reminder UI constructor is replaced, and the settings import uses
+Combine in place of SwiftUI. The checks cover busy-state guards, pending/Pro/
+enabled gates, stale callback generations, default/missing/null settings keys,
+round-tripping true/false, reset and final interval saturation. No real settings
+or application is touched. SwiftUI bindings, focus/timing and filesystem
+persistence remain UI/integration checks.
+
+Both test additions leave their PRs' application source trees unchanged. Fresh
+Release builds passed at the new commits above; the parent independently reran
+the 139 and 87 assertions and the existing 33 QuickSnapper assertions.
 
 The first review found that #107's immediate array clear could crash queued
 hotkey callbacks. Follow-up `69f1019` guards window selection, queues snapping on
@@ -73,3 +90,25 @@ directory. Checks confirmed temporary registration records were removed.
 The ineffective build setting was subsequently removed from the helper.
 
 Compiler logs, raw validation reports and rollback ZIPs stay in ignored `.local/`.
+
+## Remaining UI checklist before release
+
+Use the single canonical app and a settings backup during a deliberately planned
+installation test; never launch a second test app beside it. The broader #106
+and #107 changes are not in the current daily build, so testing today's installed
+app cannot validate those PRs.
+
+- #103: repeat drag/dwell/release across layouts, confirm the pulse and selection,
+  then sample post-hide CPU after a cooldown.
+- #104: launch with existing saved layouts and confirm selection and snapping.
+- #105: toggle reminders from both controls, relaunch to check persistence, and
+  verify a pending reminder does not interrupt dragging or return after disable.
+- #106: exercise zone/grid switching, editing, renaming/removing layouts, hover
+  resizers, and screen changes; compare canonicalized settings before/after.
+- #107: repeat open/close/reopen with empty and populated window lists, including
+  Left/Right, Tab/Shift-Tab, number, Enter and Escape hotkeys around the fade.
+- Status item: check position/visibility across relaunch, preserving the same
+  bundle identity; do not reset private Control Center state as part of QA.
+
+Record the tested commit, expected/observed result and configuration. Leave
+unchecked items explicitly pending instead of interpreting a build as UI QA.
