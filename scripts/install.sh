@@ -29,6 +29,11 @@ codesign -dv "$app" 2>&1 | /usr/bin/grep -q '^TeamIdentifier=U454V8N2L2$'
 backup="$ROOT/.local/backups/before-$commit-$(date +%Y%m%d-%H%M%S).zip"
 ditto -c -k --sequesterRsrc --keepParent "$target" "$backup"
 /usr/bin/unzip -tq "$backup" >/dev/null
+settings="$HOME/Library/Application Support/$bundle_id"
+if [[ -d "$settings" ]]; then
+    ditto -c -k --sequesterRsrc --keepParent "$settings" "${backup%.zip}-settings.zip"
+    /usr/bin/unzip -tq "${backup%.zip}-settings.zip" >/dev/null
+fi
 # Stop only processes executing the canonical installed binary.
 pids="$(pgrep -x MacsyZones || true)"
 for pid in $pids; do
