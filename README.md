@@ -1,9 +1,6 @@
 # MacsyZones
 
-> This is the maintained `eafire15/MacsyZones` fork. Start with the
-> [fork and installation guide](docs/FORK.md), [upstream PR map](docs/PULL_REQUESTS.md),
-> and [validation record](docs/VALIDATION.md). The maintained branch is
-> `local/maintained`; upstream contributions remain on separate focused branches.
+Maintained fork of [rohanrhu/MacsyZones](https://github.com/rohanrhu/MacsyZones) — a FancyZones-style window-layout app for macOS — carrying fixes upstream doesn't have: a Tahoe status-item identity fix, no more idle-CPU layout-switcher animation, no duplicate layout windows at launch, and reproducible local builds with proper start-at-login registration. Maintained branch: `local/maintained`. Details: [FORK.md](docs/FORK.md), [PULL_REQUESTS.md](docs/PULL_REQUESTS.md), [VALIDATION.md](docs/VALIDATION.md).
 
 [![GitHub release](https://img.shields.io/github/release/rohanrhu/MacsyZones.svg?style=flat-square&color=informational)](https://github.com/rohanrhu/MacsyZones/releases)
 [![GitHub stars](https://img.shields.io/github/stars/rohanrhu/MacsyZones?style=flat-square)](https://github.com/rohanrhu/MacsyZones/stargazers)
@@ -11,8 +8,6 @@
 [![MacsyZones Discord](https://img.shields.io/discord/1293725442238447737.svg?color=7289da&label=Discord&logo=discord&style=flat-square)](https://discord.gg/C4axTA6rpn)
 
 <img src="media/MacsyZones.svg" alt="MacsyZones" width="860">
-
-Make your workflow more efficient with MacsyZones. Organize your windows with ease.
 
 Visit [https://macsyzones.com](https://macsyzones.com) to download MacsyZones.
 
