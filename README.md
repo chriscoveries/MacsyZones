@@ -10,6 +10,8 @@
 [![Support me on Patreon](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fshieldsio-patreon.vercel.app%2Fapi%3Fusername%3DEvrenselKisilik%26type%3Dpatrons&style=flat-square)](https://patreon.com/EvrenselKisilik)
 [![MacsyZones Discord](https://img.shields.io/discord/1293725442238447737.svg?color=7289da&label=Discord&logo=discord&style=flat-square)](https://discord.gg/C4axTA6rpn)
 
+<img src="media/MacsyZones.svg" alt="MacsyZones" width="860">
+
 Make your workflow more efficient with MacsyZones. Organize your windows with ease.
 
 Visit [https://macsyzones.com](https://macsyzones.com) to download MacsyZones.
