@@ -1,11 +1,13 @@
 # MacsyZones
 
+Maintained personal fork of [rohanrhu/MacsyZones](https://github.com/rohanrhu/MacsyZones), a FancyZones-style window-layout app for macOS. The maintained branch incorporates upstream 3.1.1, preserves a working Tahoe menu-bar identity, keeps native start-at-login registration, and supplies reproducible local builds protected against replacement by upstream updates. Its snapping path also avoids redundant delayed window writes. Maintained branch: `local/maintained`. Details: [FORK.md](docs/FORK.md), [PULL_REQUESTS.md](docs/PULL_REQUESTS.md), [VALIDATION.md](docs/VALIDATION.md).
+
 [![GitHub release](https://img.shields.io/github/release/rohanrhu/MacsyZones.svg?style=flat-square&color=informational)](https://github.com/rohanrhu/MacsyZones/releases)
 [![GitHub stars](https://img.shields.io/github/stars/rohanrhu/MacsyZones?style=flat-square)](https://github.com/rohanrhu/MacsyZones/stargazers)
 [![Support me on Patreon](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fshieldsio-patreon.vercel.app%2Fapi%3Fusername%3DEvrenselKisilik%26type%3Dpatrons&style=flat-square)](https://patreon.com/EvrenselKisilik)
 [![MacsyZones Discord](https://img.shields.io/discord/1293725442238447737.svg?color=7289da&label=Discord&logo=discord&style=flat-square)](https://discord.gg/C4axTA6rpn)
 
-Make your workflow more efficient with MacsyZones. Organize your windows with ease.
+<img src="media/MacsyZones.svg" alt="MacsyZones" width="860">
 
 Visit [https://macsyzones.com](https://macsyzones.com) to download MacsyZones.
 

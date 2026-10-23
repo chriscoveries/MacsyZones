@@ -32,6 +32,7 @@ struct AppSettingsData: Codable {
     var snapHighlightStrategy: SnapHighlightStrategy?
     var enableLayoutSwitcher: Bool?
     var quickSnapperZoneLayoutsOnly: Bool?
+    var automaticDonationReminders: Bool?
 }
 
 class AppSettings: UserData, ObservableObject {
@@ -55,6 +56,7 @@ class AppSettings: UserData, ObservableObject {
     private static let defaultSnapHighlightStrategy: SnapHighlightStrategy = .centerProximity
     private static let defaultEnableLayoutSwitcher: Bool = true
     private static let defaultQuickSnapperZoneLayoutsOnly: Bool = true
+    private static let defaultAutomaticDonationReminders: Bool = true
     
     @Published var modifierKey: String = defaultModifierKey
     @Published var snapKey: String = defaultSnapKey
@@ -75,6 +77,7 @@ class AppSettings: UserData, ObservableObject {
     @Published var snapHighlightStrategy: SnapHighlightStrategy = defaultSnapHighlightStrategy
     @Published var enableLayoutSwitcher: Bool = defaultEnableLayoutSwitcher
     @Published var quickSnapperZoneLayoutsOnly: Bool = defaultQuickSnapperZoneLayoutsOnly
+    @Published var automaticDonationReminders: Bool = defaultAutomaticDonationReminders
 
     init() {
         super.init(name: "AppSettings", data: "{}", fileName: "AppSettings.json")
@@ -107,6 +110,7 @@ class AppSettings: UserData, ObservableObject {
             self.snapHighlightStrategy = settings.snapHighlightStrategy ?? snapHighlightStrategy
             self.enableLayoutSwitcher = settings.enableLayoutSwitcher ?? enableLayoutSwitcher
             self.quickSnapperZoneLayoutsOnly = settings.quickSnapperZoneLayoutsOnly ?? quickSnapperZoneLayoutsOnly
+            self.automaticDonationReminders = settings.automaticDonationReminders ?? automaticDonationReminders
         } catch {
             debugLog("Error parsing settings JSON: \(error)")
         }
@@ -133,7 +137,8 @@ class AppSettings: UserData, ObservableObject {
                 cycleWindowsBackwardShortcut: cycleWindowsBackwardShortcut,
                 snapHighlightStrategy: snapHighlightStrategy,
                 enableLayoutSwitcher: enableLayoutSwitcher,
-                quickSnapperZoneLayoutsOnly: quickSnapperZoneLayoutsOnly
+                quickSnapperZoneLayoutsOnly: quickSnapperZoneLayoutsOnly,
+                automaticDonationReminders: automaticDonationReminders
             )
             
             let jsonData = try JSONEncoder().encode(settings)
@@ -167,6 +172,7 @@ class AppSettings: UserData, ObservableObject {
         snapHighlightStrategy = Self.defaultSnapHighlightStrategy
         enableLayoutSwitcher = Self.defaultEnableLayoutSwitcher
         quickSnapperZoneLayoutsOnly = Self.defaultQuickSnapperZoneLayoutsOnly
+        automaticDonationReminders = Self.defaultAutomaticDonationReminders
         
         if #available(macOS 12.0, *) {
             quickSnapper.toggleHotkey?.register(for: quickSnapShortcut)

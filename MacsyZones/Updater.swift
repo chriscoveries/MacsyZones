@@ -13,6 +13,10 @@
 import Foundation
 
 class AppUpdater: ObservableObject {
+    // Forks must keep their own signature, identity, preferences, and patches.
+    // An upstream release archive would replace all of these in place.
+    let supportsInAppUpdates = Bundle.main.bundleIdentifier == "MeowingCat.MacsyZones"
+
     @Published var isChecking = false
     @Published var isUpdatable: Bool?
     @Published var isDownloading = false
@@ -22,6 +26,8 @@ class AppUpdater: ObservableObject {
     let updater = GitHubUpdater()
     
     func checkForUpdates(download: Bool = false) {
+        guard supportsInAppUpdates else { return }
+
         Task { @MainActor in
             self.isChecking = true
         }
@@ -133,6 +139,11 @@ class GitHubUpdater {
     let appName = "MacsyZones"
     
     func checkForUpdates(onChecked: ((String?) -> Void)? = nil, onDownloaded: ((Bool) -> Void)? = nil) {
+        guard Bundle.main.bundleIdentifier == "MeowingCat.MacsyZones" else {
+            onChecked?(nil)
+            return
+        }
+
         githubAPI.checkLatestRelease { [self] latestRelease in
             guard let latestRelease else {
                 onChecked?(nil)

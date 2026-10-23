@@ -86,44 +86,6 @@ func checkSnapKeyOnWindowMoveStart() {
 
 let spaceLayoutPreferences = SpaceLayoutPreferences()
 
-func getWindowUnderMouse() -> (element: AXUIElement, windowId: UInt32)? {
-    let mouseLocation = NSEvent.mouseLocation
-    
-    guard let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
-        return nil
-    }
-    
-    for windowInfo in windowList {
-        guard let bounds = windowInfo[kCGWindowBounds as String] as? [String: CGFloat],
-              let windowLayer = windowInfo[kCGWindowLayer as String] as? Int,
-              let windowId = windowInfo[kCGWindowNumber as String] as? UInt32 else {
-            continue
-        }
-        
-        if windowLayer != 0 { continue }
-        
-        let x = bounds["X"] ?? 0
-        let y = bounds["Y"] ?? 0
-        let width = bounds["Width"] ?? 0
-        let height = bounds["Height"] ?? 0
-        
-        if mouseLocation.x >= x && mouseLocation.x <= x + width &&
-           mouseLocation.y >= y && mouseLocation.y <= y + height {
-            
-            if let element = retrieveFreshWindowElement(for: windowId) {
-                var subroleRef: CFTypeRef?
-                if AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleRef) == .success {
-                    if let subrole = subroleRef as? String, subrole == kAXStandardWindowSubrole {
-                        return (element: element, windowId: windowId)
-                    }
-                }
-            }
-        }
-    }
-    
-    return nil
-}
-
 func onMouseDown(event: NSEvent) {
     draggedWindowElement = nil
     draggedWindowInitialPosition = nil
@@ -310,55 +272,49 @@ func getHoveredSectionWindow() -> SectionWindow? {
         }
         
         if hoveredSectionWindow == nil {
-            let sortedSectionWindows: [SectionWindow]
-            
-            if appSettings.snapHighlightStrategy == .centerProximity {
-                sortedSectionWindows = userLayouts.currentLayout.layoutWindow.sectionWindows.sorted {
-                    let screenSize = focusedScreen.frame
-                    let screenOrigin = focusedScreen.frame.origin
-                    
-                    let bounds1 = $0.getBounds(for: focusedScreen)
-                    let center1X = screenOrigin.x + bounds1.xPercentage * screenSize.width + (bounds1.widthPercentage * screenSize.width) / 2
-                    let center1Y = screenOrigin.y + bounds1.yPercentage * screenSize.height + (bounds1.heightPercentage * screenSize.height) / 2
-                    let distance1 = sqrt(pow(mouseLocation.x - center1X, 2) + pow(mouseLocation.y - center1Y, 2))
-                    
-                    let bounds2 = $1.getBounds(for: focusedScreen)
-                    let center2X = screenOrigin.x + bounds2.xPercentage * screenSize.width + (bounds2.widthPercentage * screenSize.width) / 2
-                    let center2Y = screenOrigin.y + bounds2.yPercentage * screenSize.height + (bounds2.heightPercentage * screenSize.height) / 2
-                    let distance2 = sqrt(pow(mouseLocation.x - center2X, 2) + pow(mouseLocation.y - center2Y, 2))
-                    
-                    return distance1 < distance2
-                }
-            } else {
-                sortedSectionWindows = userLayouts.currentLayout.layoutWindow.sectionWindows.sorted {
-                    let frame1 = $0.window.frame
-                    let frame2 = $1.window.frame
-                    return (frame1.width * frame1.height) < (frame2.width * frame2.height)
-                }
-            }
-            
-            for sectionWindow in sortedSectionWindows {
-                let screenSize = focusedScreen.frame
-                let screenOrigin = focusedScreen.frame.origin
+            // Select the best containing zone in one pass. Sorting all zones on
+            // every move notification repeatedly recomputed their bounds.
+            let screenFrame = focusedScreen.frame
+            var bestScore = CGFloat.infinity
+            for sectionWindow in userLayouts.currentLayout.layoutWindow.sectionWindows {
                 let bounds = sectionWindow.getBounds(for: focusedScreen)
-                let width = bounds.widthPercentage * screenSize.width
-                let height = bounds.heightPercentage * screenSize.height
-                let x = screenOrigin.x + bounds.xPercentage * screenSize.width
-                let y = screenOrigin.y + bounds.yPercentage * screenSize.height
-                
-                if mouseLocation.x > x && mouseLocation.x < x + width && mouseLocation.y > y && mouseLocation.y < y + height {
+                let width = bounds.widthPercentage * screenFrame.width
+                let height = bounds.heightPercentage * screenFrame.height
+                let x = screenFrame.minX + bounds.xPercentage * screenFrame.width
+                let y = screenFrame.minY + bounds.yPercentage * screenFrame.height
+
+                guard mouseLocation.x > x, mouseLocation.x < x + width,
+                      mouseLocation.y > y, mouseLocation.y < y + height else { continue }
+
+                let score: CGFloat
+                if appSettings.snapHighlightStrategy == .centerProximity {
+                    let dx = mouseLocation.x - (x + width / 2)
+                    let dy = mouseLocation.y - (y + height / 2)
+                    score = dx * dx + dy * dy
+                } else {
+                    let frame = sectionWindow.window.frame
+                    score = frame.width * frame.height
+                }
+
+                if score < bestScore {
+                    bestScore = score
                     hoveredSectionWindow = sectionWindow
-                    break
                 }
             }
         }
     }
 
+    // @Published triggers a SwiftUI update even when assigned the same value.
+    // Window-move notifications can arrive 120 times per second.
+    let shouldRaise = hoveredSectionWindow.map { !$0.isHovered } ?? false
     for sectionWindow in userLayouts.currentLayout.layoutWindow.sectionWindows {
-        sectionWindow.isHovered = (sectionWindow === hoveredSectionWindow)
+        let isHovered = sectionWindow === hoveredSectionWindow
+        if sectionWindow.isHovered != isHovered {
+            sectionWindow.isHovered = isHovered
+        }
     }
-    
-    if let hoveredSectionWindow = hoveredSectionWindow {
+
+    if shouldRaise, let hoveredSectionWindow = hoveredSectionWindow {
         hoveredSectionWindow.window.orderFront(nil)
     }
     
@@ -614,42 +570,10 @@ func getWindowDetails(element: AXUIElement) -> String {
     return details
 }
 
-func isElementResizable(element: AXUIElement) -> Bool {
-    var resizable: DarwinBoolean = true
-    AXUIElementIsAttributeSettable(element, kAXSizeAttribute as CFString, &resizable)
-    return resizable.boolValue
-}
+// A newer snap must supersede a delayed correction for the same window.
+private var snapMoveGenerations: [UInt32: UUID] = [:]
 
-func resizeAndMoveWindow(element: AXUIElement, newPosition: CGPoint, newSize: CGSize, retries: Int = 0, retryParent: Bool = false, useFallback: Bool = true) {
-    if retryParent && !isElementResizable(element: element) {
-        debugLog("Window is not resizable! Trying parent window...")
-        
-        var iterationCount = 0
-
-        while iterationCount < 5 {
-            iterationCount += 1
-            
-            var result: AXError
-            var parentElementRef: CFTypeRef?
-            
-            result = AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parentElementRef)
-            if result != .success { return }
-            
-            var subroleRef: CFTypeRef?
-            result = AXUIElementCopyAttributeValue(parentElementRef as! AXUIElement, kAXSubroleAttribute as CFString, &subroleRef)
-            if result != .success { return }
-            let subrole = subroleRef as! String
-            
-            let parentElement = parentElementRef as! AXUIElement
-            
-            if subrole == kAXStandardWindowSubrole {
-                return resizeAndMoveWindow(element: parentElement, newPosition: newPosition, newSize: newSize, retries: retries, useFallback: useFallback)
-            }
-        }
-        
-        return
-    }
-    
+func resizeAndMoveWindow(element: AXUIElement, newPosition: CGPoint, newSize: CGSize, retries: Int = 0, useFallback: Bool = true) {
     /*
      * Fix macOS bug!
      * --------------
@@ -668,130 +592,56 @@ func resizeAndMoveWindow(element: AXUIElement, newPosition: CGPoint, newSize: CG
         }
     }
     
-    var lastPositionResult: AXError = .success
-    var lastSizeResult: AXError = .success
-    
-    for i in 0..<(retries == 0 ? 1 : retries) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + (0.05 * Double(i))) { [element] in
-            var sizeValue: CGSize
-            
-            var positionValue = newPosition
-            if let positionAXValue = AXValueCreate(.cgPoint, &positionValue) {
-                let result = AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionAXValue)
-                
-                if result != .success {
-                    debugLog("Failed to set window position, error code: \(result.rawValue)")
-                    debugLog(getWindowDetails(element: element))
-                }
-            }
-            
-            sizeValue = newSize
-            if let sizeAXValue = AXValueCreate(.cgSize, &sizeValue) {
-                let result = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeAXValue)
-                
-                if result != .success {
-                    debugLog("Failed to set window size, error code: \(result.rawValue)")
-                    debugLog(getWindowDetails(element: element))
-                }
-            }
-        }
-        
-        if let windowId = getWindowID(from: element),
-           case let (currentSize, currentPosition) = getWindowSizeAndPosition(from: windowId)
-        {
-            if currentSize == newSize && currentPosition == newPosition {
-                return
-            }
-        } else {
-            break
-        }
+    let windowId = getWindowID(from: element)
+    let generation = UUID()
+    if let windowId {
+        snapMoveGenerations[windowId] = generation
     }
     
     var positionValue = newPosition
+    var lastPositionResult: AXError = .failure
     if let positionAXValue = AXValueCreate(.cgPoint, &positionValue) {
         lastPositionResult = AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, positionAXValue)
     }
     
     var sizeValue = newSize
+    var lastSizeResult: AXError = .failure
     if let sizeAXValue = AXValueCreate(.cgSize, &sizeValue) {
         lastSizeResult = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeAXValue)
     }
 
     if (lastPositionResult != .success || lastSizeResult != .success) && useFallback {
-        debugLog("Snap operation failed (position: \(lastPositionResult.rawValue), size: \(lastSizeResult.rawValue)), attempting fallback with fresh window element...")
-        
-        if let freshElement = getFocusedWindowAXUIElement() {
-            debugLog("Retrieved fresh window element by ID, retrying snap operation...")
-            resizeAndMoveWindow(element: freshElement, newPosition: newPosition, newSize: newSize, retries: retries, retryParent: retryParent, useFallback: false)
+        debugLog("Snap operation failed (position: \(lastPositionResult.rawValue), size: \(lastSizeResult.rawValue))")
+
+        // A focused-window fallback can move an unrelated window if focus changed.
+        if let windowId, let freshElement = retrieveFreshWindowElement(for: windowId) {
+            resizeAndMoveWindow(element: freshElement, newPosition: newPosition, newSize: newSize, retries: retries, useFallback: false)
             return
         }
-        
-        if let title = getWindowTitle(from: element) {
-            var currentPosition: CGPoint?
-            var positionRef: CFTypeRef?
-            if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success {
-                var position: CGPoint = .zero
-                AXValueGetValue(positionRef as! AXValue, AXValueType.cgPoint, &position)
-                currentPosition = position
-            }
-            
-            if let freshElementInfo = retrieveFreshWindowElementByTitle(title: title, approximatePosition: currentPosition) {
-                debugLog("Retrieved fresh window element by title, retrying snap operation...")
-                resizeAndMoveWindow(element: freshElementInfo.element, newPosition: newPosition, newSize: newSize, retries: retries, retryParent: retryParent, useFallback: false)
+    }
+
+    // Wait for the target application to apply the frame, then retry only if
+    // its actual bounds are still different. Most snaps now take one write.
+    if retries > 1, let windowId {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [element] in
+            guard snapMoveGenerations[windowId] == generation else { return }
+
+            if case let (currentSize?, currentPosition?) = getWindowSizeAndPosition(from: windowId),
+               abs(currentPosition.x - newPosition.x) <= 1,
+               abs(currentPosition.y - newPosition.y) <= 1,
+               abs(currentSize.width - newSize.width) <= 1,
+               abs(currentSize.height - newSize.height) <= 1 {
+                snapMoveGenerations.removeValue(forKey: windowId)
                 return
             }
-        }
-        
-        debugLog("Fallback failed: could not retrieve fresh window element")
-    }
-}
 
-func getElementSizeAndPosition(element: AXUIElement) -> (size: CGSize, position: CGPoint)? {
-    var result: AXError
-    
-    var sizeRef: CFTypeRef?
-    result = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &sizeRef)
-    if result != .success {
-        debugLog("Failed to get window size, error code: \(result.rawValue)")
-        return nil
-    }
-    let size = sizeRef as! CGSize
-    
-    var positionRef: CFTypeRef?
-    result = AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef)
-    if result != .success {
-        debugLog("Failed to get window position, error code: \(result.rawValue)")
-        return nil
-    }
-    let position = positionRef as! CGPoint
-    
-    return (size, position)
-}
-
-func getAXPosition(for window: NSWindow) -> CGPoint? {
-    let windowId = CGWindowID(window.windowNumber)
-    
-    let windowList = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowId) as NSArray?
-    
-    guard let windowInfoList = windowList as? [[String: AnyObject]], let windowInfo = windowInfoList.first else {
-        debugLog("Failed to retrieve window info")
-        return nil
-    }
-    
-    if let boundsDict = windowInfo[kCGWindowBounds as String] as? [String: CGFloat] {
-        guard let x = boundsDict["X"], let y = boundsDict["Y"] else {
-            debugLog("Failed to retrieve window bounds from bounds dict")
-            return nil
+            resizeAndMoveWindow(element: element, newPosition: newPosition,
+                                newSize: newSize, retries: retries - 1,
+                                useFallback: useFallback)
         }
-        
-        let position = CGPoint(x: x, y: y)
-        
-        return position
-    } else {
-        debugLog("Failed to retrieve window bounds")
+    } else if let windowId {
+        snapMoveGenerations.removeValue(forKey: windowId)
     }
-    
-    return nil
 }
 
 extension NSScreen {
@@ -802,24 +652,25 @@ extension NSScreen {
 }
 
 func moveWindowToMatch(element: AXUIElement, targetWindow: NSWindow, targetScreen: NSScreen? = nil, sectionConfig: SectionConfig? = nil, retries: Int = 10) {
-    guard let position = getAXPosition(for: targetWindow) else { return }
-    
-    var newPosition: CGPoint = position
-    var newSize: CGSize = targetWindow.frame.size
-    
+    let targetRect: NSRect
     if let targetScreen, let sectionConfig {
-        let rect = sectionConfig.getAXRect(on: targetScreen)
-        newPosition = rect.origin
-        newSize = rect.size
+        targetRect = sectionConfig.getAXRect(on: targetScreen)
+    } else {
+        // Zone windows are borderless. Their AppKit frame is authoritative even
+        // when hidden; querying WindowServer for an off-screen overlay can fail.
+        guard let primaryTop = NSScreen.screens.first?.frame.maxY else { return }
+        let frame = targetWindow.frame
+        targetRect = NSRect(x: frame.minX, y: primaryTop - frame.maxY,
+                            width: frame.width, height: frame.height)
     }
-    
+
     resizeAndMoveWindow(element: element,
-                        newPosition: newPosition,
-                        newSize: newSize,
+                        newPosition: targetRect.origin,
+                        newSize: targetRect.size,
                         retries: retries)
 }
 
-func resizeWindow(element: AXUIElement, newSize: CGSize) {
+func resizeWindow(element: AXUIElement, newSize: CGSize, useFallback: Bool = true) {
     var sizeValue = newSize
     let sizeAXValue = AXValueCreate(.cgSize, &sizeValue)
     
@@ -827,12 +678,12 @@ func resizeWindow(element: AXUIElement, newSize: CGSize) {
         let result = AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, sizeAXValue)
         
         if result != .success {
-            debugLog("Failed to set window size, error code: \(result.rawValue) Retrying with fresh window element...")
+            debugLog("Failed to set window size, error code: \(result.rawValue)")
 
-            if let freshElement = getFocusedWindowAXUIElement() {
-                debugLog("Retrieved fresh window element by ID, retrying resize operation...")
-                resizeWindow(element: freshElement, newSize: newSize)
-                return
+            if useFallback,
+               let windowId = getWindowID(from: element),
+               let freshElement = retrieveFreshWindowElement(for: windowId) {
+                resizeWindow(element: freshElement, newSize: newSize, useFallback: false)
             }
         }
     }

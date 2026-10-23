@@ -1,0 +1,29 @@
+name: macOS Release Check
+
+on:
+  push:
+    branches:
+      - local/maintained
+      - sync/**
+  pull_request:
+    branches:
+      - local/maintained
+
+jobs:
+  build-and-model-checks:
+    runs-on: macos-26
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build unsigned Release app
+        run: |
+          xcodebuild -project MacsyZones.xcodeproj -scheme MacsyZones \
+            -configuration Release -destination 'generic/platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/MacsyZonesDerivedData" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            PRODUCT_BUNDLE_IDENTIFIER=local.chrisd.macsyzones.20260903 build
+      - name: Lazy layout lifecycle checks
+        run: bash scripts/check_lazy_lifecycle.sh
+      - name: QuickSnapper lifecycle checks
+        run: bash scripts/check_quicksnapper_lifecycle.sh

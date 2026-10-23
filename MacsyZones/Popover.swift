@@ -679,6 +679,16 @@ struct Main: View {
             #if !APPSTORE
             if !proLock.isPro {
                 Divider().padding(.vertical, 2)
+
+                Toggle("Show occasional support reminders", isOn: $settings.automaticDonationReminders)
+                    .toggleStyle(.checkbox)
+                    .onChange(of: settings.automaticDonationReminders) { enabled in
+                        appSettings.save()
+                        if !enabled {
+                            donationReminder.hide()
+                        }
+                    }
+
                 Button(action: { page = "unlock" }) {
                     HStack {
                         Image(systemName: "heart.fill").foregroundColor(.red)
@@ -702,7 +712,10 @@ struct Main: View {
             HStack {
                 Button(action: { updater.checkForUpdates() }) {
                     HStack {
-                        if updater.isChecking {
+                        if !updater.supportsInAppUpdates {
+                            Image(systemName: "checkmark.shield")
+                            Text("Updates managed by your fork")
+                        } else if updater.isChecking {
                             Image(systemName: "arrow.clockwise.circle")
                             Text("Checking...")
                         } else if updater.isDownloading {
@@ -717,7 +730,7 @@ struct Main: View {
                         }
                     }
                 }
-                .disabled(updater.isChecking || updater.isDownloading)
+                .disabled(!updater.supportsInAppUpdates || updater.isChecking || updater.isDownloading)
                 
                 Button(action: {
                     showResetToDefaultsDialog = true
