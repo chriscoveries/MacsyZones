@@ -270,7 +270,7 @@ class UserLayout {
             for sectionWindow in layoutWindow.sectionWindows {
                 sectionWindow.isHovered = false
                 sectionWindow.window.orderOut(nil)
-                sectionWindow.editorWindow.orderOut(nil)
+                sectionWindow.editorWindow?.orderOut(nil)
             }
 
             layoutWindow.window.orderOut(nil)

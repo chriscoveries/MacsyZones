@@ -348,7 +348,7 @@ struct EditorSectionView: View {
         
         let newFrame = preset.calculateFrame(for: screenFrame)
         
-        sectionWindow.editorWindow.setFrame(newFrame, display: true, animate: true)
+        sectionWindow.editorWindow?.setFrame(newFrame, display: true, animate: true)
         sectionWindow.window.setFrame(newFrame, display: true, animate: true)
     }
     
@@ -594,7 +594,7 @@ class EditorSectionWindowDelegate: NSObject, NSWindowDelegate {
     
     init(sectionWindow: SectionWindow?) {
         self.sectionWindow = sectionWindow
-        self.originalScreen = sectionWindow?.editorWindow.screen
+        self.originalScreen = sectionWindow?.editorWindow?.screen
         super.init()
     }
     
@@ -669,7 +669,10 @@ func cycleOverlappingEditZone(on event: NSEvent) -> Bool {
 
     let screenPoint = clickedWindow.convertPoint(toScreen: event.locationInWindow)
     let overlappingZones = layout.sectionWindows
-        .filter { $0.editorWindow.isVisible && $0.editorWindow.frame.contains(screenPoint) }
+        .filter { zone in
+            guard let editorWindow = zone.editorWindow else { return false }
+            return editorWindow.isVisible && editorWindow.frame.contains(screenPoint)
+        }
         .sorted { $0.number < $1.number }
 
     guard overlappingZones.count > 1,
@@ -677,7 +680,7 @@ func cycleOverlappingEditZone(on event: NSEvent) -> Bool {
     else { return false }
 
     let nextZone = overlappingZones[(currentIndex + 1) % overlappingZones.count]
-    nextZone.editorWindow.makeKeyAndOrderFront(nil)
+    nextZone.editorWindow?.makeKeyAndOrderFront(nil)
     return true
 }
 
@@ -686,13 +689,19 @@ class SectionWindow: Hashable, ObservableObject {
     @Published var isHovered: Bool = false
     @Published var windowSize: CGSize = .zero
     
-    var editorWindow: NSWindow!
+    // Only zone editing needs a titled, interactive window and SwiftUI editor.
+    // Ordinary drag overlays use `window` and must not allocate the editor.
+    private(set) var editorWindow: NSWindow?
     // The layout owns its sections. Keep the parent reference non-owning so
     // removing a layout can release its complete editor/overlay graph.
     weak var layoutWindow: LayoutWindow!
     var window: NSWindow!
     var sectionConfig: SectionConfig
     var editorWindowDelegate: EditorSectionWindowDelegate?
+
+    // The editor can have unsaved geometry. Snapping always uses `window`;
+    // editing tools use this frame until Save commits the new zone bounds.
+    var editorFrame: NSRect { editorWindow?.frame ?? window.frame }
     
     var isEditing: Bool { layoutWindow.isEditing }
     
@@ -721,10 +730,18 @@ class SectionWindow: Hashable, ObservableObject {
 
         layoutWindow.window.addChildWindow(window, ordered: .above)
         
-        editorWindow = EditorSectionWindow(contentRect: contentRect,
-                                           styleMask: [.resizable, .fullSizeContentView, .titled, .unifiedTitleAndToolbar],
-                                           backing: .buffered,
-                                           defer: false)
+        window.orderOut(nil)
+    }
+
+    private func ensureEditorWindow() -> NSWindow {
+        if let editorWindow { return editorWindow }
+
+        // The editor is constructed on entry and released on exit. This avoids
+        // retaining an extra AppKit window and hosting view per inactive zone.
+        let editorWindow = EditorSectionWindow(contentRect: window.frame,
+                                               styleMask: [.resizable, .fullSizeContentView, .titled, .unifiedTitleAndToolbar],
+                                               backing: .buffered,
+                                               defer: false)
         editorWindow.title = ""
         editorWindow.isOpaque = true
         editorWindow.backgroundColor = .clear
@@ -746,21 +763,22 @@ class SectionWindow: Hashable, ObservableObject {
         editorWindow.standardWindowButton(.zoomButton)?.isHidden = false
         
         let editorSectionView = EditorSectionView(
-            onDelete: { [unowned self] in
-                onDelete(self)
+            onDelete: { [weak self] in
+                guard let self else { return }
+                self.onDelete(self)
             },
             sectionWindow: self,
             number: number
         )
         editorWindow.contentView = NSHostingView(rootView: editorSectionView)
         
+        self.editorWindow = editorWindow
         editorWindowDelegate = EditorSectionWindowDelegate(sectionWindow: self)
         editorWindow.delegate = editorWindowDelegate
         
-        layoutWindow.window.addChildWindow(editorWindow, ordered: .above)
-        
-        window.orderOut(nil)
+        layoutWindow?.window.addChildWindow(editorWindow, ordered: .above)
         editorWindow.orderOut(nil)
+        return editorWindow
     }
     
     func reset(sectionConfig: SectionConfig) {
@@ -773,14 +791,14 @@ class SectionWindow: Hashable, ObservableObject {
         if window.frame != contentRect {
             window.setFrame(contentRect, display: true, animate: false)
         }
-        if editorWindow.frame != contentRect {
+        if let editorWindow, editorWindow.frame != contentRect {
             editorWindow.setFrame(contentRect, display: true, animate: false)
         }
         if windowSize != contentRect.size {
             windowSize = contentRect.size
         }
         
-        editorWindowDelegate?.originalScreen = editorWindow.screen
+        editorWindowDelegate?.originalScreen = editorWindow?.screen
     }
     
     func getBounds(for screen: NSScreen? = nil) -> SectionBounds {
@@ -796,6 +814,7 @@ class SectionWindow: Hashable, ObservableObject {
     }
     
     func startEditing() {
+        let editorWindow = ensureEditorWindow()
         editorWindowDelegate?.originalScreen = editorWindow.screen
         editorWindow.orderFront(nil)
         editorWindow.level = .statusBar - 1
@@ -803,7 +822,16 @@ class SectionWindow: Hashable, ObservableObject {
     }
     
     func stopEditing() {
+        // A hidden NSWindow still holds its SwiftUI view and zone model.
+        // Closing just the editor leaves the snap overlay hot for the next drag.
+        guard let editorWindow else { return }
         editorWindow.orderOut(nil)
+        layoutWindow?.window.removeChildWindow(editorWindow)
+        editorWindow.delegate = nil
+        editorWindow.contentView = nil
+        editorWindowDelegate = nil
+        editorWindow.close()
+        self.editorWindow = nil
     }
 
     // This is terminal cleanup for a removed zone. orderOut alone retains the
@@ -811,15 +839,10 @@ class SectionWindow: Hashable, ObservableObject {
     // Never call this when merely hiding a zone for a normal snap.
     func dispose() {
         window.orderOut(nil)
-        editorWindow.orderOut(nil)
+        stopEditing()
         layoutWindow?.window.removeChildWindow(window)
-        layoutWindow?.window.removeChildWindow(editorWindow)
         window.contentView = nil
-        editorWindow.contentView = nil
-        editorWindow.delegate = nil
-        editorWindowDelegate = nil
         window.close()
-        editorWindow.close()
     }
     
     static func == (lhs: SectionWindow, rhs: SectionWindow) -> Bool {
@@ -940,8 +963,8 @@ class LayoutWindow: ObservableObject {
     
     var window: NSWindow
     var sectionWindows: [SectionWindow] = []
-    var editorBarWindow: NSWindow
-    var editorBarHostingView: NSHostingView<EditorBarView>?
+    private(set) var editorBarWindow: NSWindow?
+    private var editorBarHostingView: NSHostingView<EditorBarView>?
     
     var isEditing: Bool = false
     
@@ -984,11 +1007,32 @@ class LayoutWindow: ObservableObject {
         window.ignoresMouseEvents = true
         window.isMovableByWindowBackground = false
         
-        editorBarWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 100),
-                                         styleMask: [.resizable, .fullSizeContentView],
-                                         backing: .buffered,
-                                         defer: false)
-        editorBarWindow.title = "Macsy Seciton Editor Bar"
+        for sectionConfig in sectionConfigs {
+            let sectionWindow = SectionWindow(number: sectionConfig.number!, layoutWindow: self, sectionConfig: sectionConfig, onDelete: { [weak self] section in
+                self?.onSectionDelete(section)
+            })
+
+            self.sectionConfigs[sectionConfig.number!] = sectionConfig
+            sectionWindows.append(sectionWindow)
+        }
+
+        window.orderOut(nil)
+
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
+            self?.handleMouseMoved(event: event)
+        }
+    }
+
+    // An editor bar observes the layout and its hosting view retains that
+    // observation. Give it the same short lifetime as editing itself.
+    private func ensureEditorBarWindow() -> NSWindow {
+        if let editorBarWindow { return editorBarWindow }
+
+        let editorBarWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 100),
+                                       styleMask: [.resizable, .fullSizeContentView],
+                                       backing: .buffered,
+                                       defer: false)
+        editorBarWindow.title = "Macsy Section Editor Bar"
         editorBarWindow.isOpaque = false
         editorBarWindow.backgroundColor = .clear
         editorBarWindow.titlebarAppearsTransparent = true
@@ -1011,29 +1055,17 @@ class LayoutWindow: ObservableObject {
         
         editorBarWindow.orderOut(nil)
         editorBarWindow.level = .statusBar + 1
-        
-        var numberI = 1
-        
-        for i in 0..<sectionConfigs.count {
-            let sectionConfig = sectionConfigs[i]
-            let sectionWindow = SectionWindow(number: sectionConfig.number!, layoutWindow: self, sectionConfig: sectionConfig, onDelete: { [weak self] section in
-                self?.onSectionDelete(section)
-            })
-            
-            self.sectionConfigs[sectionConfig.number!] = sectionConfig
-            sectionWindows.append(sectionWindow)
-            
-            if sectionConfig.number! > numberI {
-                numberI = sectionConfig.number!
-            }
-        }
-        
-        window.orderOut(nil)
+        self.editorBarWindow = editorBarWindow
+        return editorBarWindow
+    }
+
+    private func disposeEditorBarWindow() {
+        guard let editorBarWindow else { return }
         editorBarWindow.orderOut(nil)
-        
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { [weak self] event in
-            self?.handleMouseMoved(event: event)
-        }
+        editorBarWindow.contentView = nil
+        editorBarHostingView = nil
+        editorBarWindow.close()
+        self.editorBarWindow = nil
     }
     
     deinit {
@@ -1047,7 +1079,7 @@ class LayoutWindow: ObservableObject {
         let screenFrame = window.frame
         
         for sectionWindow in sectionWindows {
-            let originalFrame = sectionWindow.editorWindow.frame
+            let originalFrame = sectionWindow.editorFrame
             
             let left = originalFrame.minX
             let right = originalFrame.maxX
@@ -1064,7 +1096,7 @@ class LayoutWindow: ObservableObject {
             for otherWindow in sectionWindows {
                 guard otherWindow !== sectionWindow else { continue }
                 
-                let otherFrame = otherWindow.editorWindow.frame
+                let otherFrame = otherWindow.editorFrame
                 let otherLeft = otherFrame.minX
                 let otherRight = otherFrame.maxX
                 let otherTop = otherFrame.maxY
@@ -1114,7 +1146,7 @@ class LayoutWindow: ObservableObject {
         let screenFrame = window.frame
         
         for sectionWindow in sectionWindows {
-            let originalFrame = sectionWindow.editorWindow.frame
+            let originalFrame = sectionWindow.editorFrame
             var newFrame = originalFrame
             
             
@@ -1136,7 +1168,7 @@ class LayoutWindow: ObservableObject {
             for otherWindow in sectionWindows {
                 guard otherWindow !== sectionWindow else { continue }
                 
-                let otherFrame = otherWindow.editorWindow.frame
+                let otherFrame = otherWindow.editorFrame
                 let otherLeft = otherFrame.minX
                 let otherRight = otherFrame.maxX
                 let otherTop = otherFrame.maxY
@@ -1185,13 +1217,13 @@ class LayoutWindow: ObservableObject {
             newFrame.size.width -= (leftPadding + rightPadding)
             newFrame.size.height -= (bottomPadding + topPadding)
             
-            sectionWindow.editorWindow.setFrame(newFrame, display: true, animate: true)
+            sectionWindow.editorWindow?.setFrame(newFrame, display: true, animate: true)
             sectionWindow.window.setFrame(newFrame, display: true, animate: true)
         }
     }
     
     func updateEditorBarWindowSize() {
-        guard let hostingView = editorBarHostingView else { return }
+        guard let hostingView = editorBarHostingView, let editorBarWindow else { return }
         let fittingSize = hostingView.fittingSize
         editorBarWindow.setContentSize(fittingSize)
     }
@@ -1395,7 +1427,7 @@ class LayoutWindow: ObservableObject {
         let number = sectionWindow.number
         
         sectionWindow.window.orderOut(nil)
-        sectionWindow.editorWindow.orderOut(nil)
+        sectionWindow.stopEditing()
         
         let isUnsaved = unsavedNewSectionWindows.contains(where: { $0.number == number })
         
@@ -1428,7 +1460,7 @@ class LayoutWindow: ObservableObject {
         })
         sectionWindows.append(sectionWindow)
         
-        sectionWindow.editorWindow.orderFront(nil)
+        sectionWindow.startEditing()
         
         unsavedNewSectionWindows.append(sectionWindow)
         unsavedNewSectionConfigs[sectionWindow.number] = newSectionConfig
@@ -1448,16 +1480,17 @@ class LayoutWindow: ObservableObject {
             guard var sectionConfig = sectionConfigs[number] else { continue }
             guard let sectionWindow = sectionWindows.first(where: { $0.number == number }) else { continue }
             
-            let width = sectionWindow.editorWindow.frame.size.width
-            let height = sectionWindow.editorWindow.frame.size.height
+            let editorFrame = sectionWindow.editorFrame
+            let width = editorFrame.size.width
+            let height = editorFrame.size.height
             
             var x: CGFloat
             let y: CGFloat
             
             var screenSize: CGSize
             
-            if let screen = sectionWindow.editorWindow.screen {
-                let windowFrame = sectionWindow.editorWindow.frame
+            if let screen = sectionWindow.editorWindow?.screen {
+                let windowFrame = editorFrame
                 let screenFrame = screen.frame
                 screenSize = screenFrame.size
                 
@@ -1468,8 +1501,8 @@ class LayoutWindow: ObservableObject {
                 
                 screenSize = focusedScreen.frame.size
                 
-                x = sectionWindow.editorWindow.frame.origin.x
-                y = sectionWindow.editorWindow.frame.origin.y
+                x = editorFrame.origin.x
+                y = editorFrame.origin.y
             }
             
             sectionConfig.heightPercentage = height / screenSize.height
@@ -1517,7 +1550,7 @@ class LayoutWindow: ObservableObject {
         window.alphaValue = 1
         window.orderFront(nil)
         
-        editorBarWindow.orderOut(nil)
+        editorBarWindow?.orderOut(nil)
         
         if showLayouts {
             if let focusedScreen = getFocusedScreen() {
@@ -1533,7 +1566,7 @@ class LayoutWindow: ObservableObject {
             }
             
             for sectionWindow in sortedSectionWindows {
-                sectionWindow.editorWindow.orderOut(nil)
+                sectionWindow.editorWindow?.orderOut(nil)
                 sectionWindow.reset(sectionConfig: sectionWindow.sectionConfig)
                 sectionWindow.window.alphaValue = 1
                 sectionWindow.window.orderFrontRegardless()
@@ -1657,12 +1690,12 @@ class LayoutWindow: ObservableObject {
                 sectionWindow.isHovered = false
             }
             sectionWindow.window.orderOut(nil)
-            sectionWindow.editorWindow.orderOut(nil)
+            sectionWindow.editorWindow?.orderOut(nil)
         }
         
         window.orderOut(nil)
         
-        editorBarWindow.orderOut(nil)
+        editorBarWindow?.orderOut(nil)
     }
     
     func startEditing() {
@@ -1692,6 +1725,7 @@ class LayoutWindow: ObservableObject {
             }
         }
         
+        let editorBarWindow = ensureEditorBarWindow()
         editorBarWindow.orderFront(nil)
         editorBarWindow.level = .statusBar + 1
         editorBarWindow.center()
@@ -1705,7 +1739,7 @@ class LayoutWindow: ObservableObject {
         }
         
         window.orderOut(nil)
-        editorBarWindow.orderOut(nil)
+        disposeEditorBarWindow()
         
         for sectionWindow in unsavedRemovedSectionWindows {
             let number = sectionWindow.number
@@ -1776,10 +1810,8 @@ class LayoutWindow: ObservableObject {
         unsavedRemovedSectionWindows.removeAll()
         unsavedNewSectionConfigs.removeAll()
 
-        editorBarWindow.contentView = nil
-        editorBarHostingView = nil
+        disposeEditorBarWindow()
         window.close()
-        editorBarWindow.close()
     }
 }
 
