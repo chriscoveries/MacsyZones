@@ -41,52 +41,79 @@ func setIsFitting(_ fitting: Bool) {
     isFitting = fitting
 }
 
+func modifierFlag(for key: String) -> NSEvent.ModifierFlags? {
+    switch key {
+    case "Shift": return .shift
+    case "Control": return .control
+    case "Command": return .command
+    case "Option": return .option
+    default: return nil
+    }
+}
+
 func isSnapKeyPressed() -> Bool {
-    guard appSettings.snapKey != "None" else { return false }
-    
-    let currentFlags = NSEvent.modifierFlags
-    
-    switch appSettings.snapKey {
-    case "Shift":
-        return currentFlags.contains(.shift)
-    case "Control":
-        return currentFlags.contains(.control)
-    case "Command":
-        return currentFlags.contains(.command)
-    case "Option":
-        return currentFlags.contains(.option)
-    default:
-        return false
+    guard let flag = modifierFlag(for: appSettings.snapKey) else { return false }
+    return NSEvent.modifierFlags.contains(flag)
+}
+
+private var pendingSnapKeyTask: DispatchWorkItem?
+private var snapKeyOverlayActive = false
+
+// A mouse-up cancels a pending activation but leaves a visible overlay to be
+// consumed by the release handler. Releasing Shift also hides that overlay.
+func resetSnapKeyActivation(hideOverlay: Bool = false) {
+    pendingSnapKeyTask?.cancel()
+    pendingSnapKeyTask = nil
+
+    if hideOverlay && snapKeyOverlayActive && isFitting {
+        setIsFitting(false)
+        userLayouts.currentLayout.hide()
+    }
+    snapKeyOverlayActive = false
+}
+
+private func activateSnapKeyOverlay() {
+    pendingSnapKeyTask = nil
+    guard macsyReady.isReady, !isEditing, !isQuickSnapping, !isSnapResizing,
+          !isFitting, isMovingAWindow, NSEvent.pressedMouseButtons & 1 != 0,
+          isSnapKeyPressed() else { return }
+
+    if appSettings.selectPerDesktopLayout,
+       let layoutName = spaceLayoutPreferences.getCurrent() {
+        userLayouts.setCurrentLayout(name: layoutName)
+    }
+
+    setIsFitting(true)
+    snapKeyOverlayActive = true
+
+    let currentLayout = userLayouts.currentLayout
+    switch currentLayout.layoutType {
+    case .zone:
+        currentLayout.layoutWindow.show()
+    case .grid:
+        currentLayout.gridLayoutWindow?.show()
+        currentLayout.gridLayoutWindow?.setAnchorAtMousePosition()
     }
 }
 
 func checkSnapKeyOnWindowMoveStart() {
-    if !macsyReady.isReady { return }
+    guard macsyReady.isReady, !isFitting, isSnapKeyPressed(),
+          pendingSnapKeyTask == nil else { return }
 
-    if isSnapKeyPressed() && !isFitting {
-        if appSettings.selectPerDesktopLayout {
-            if let layoutName = spaceLayoutPreferences.getCurrent() {
-                userLayouts.setCurrentLayout(name: layoutName)
-            }
-        }
-
-        setIsFitting(true)
-
-        let currentLayout = userLayouts.currentLayout
-
-        switch currentLayout.layoutType {
-            case .zone:
-                currentLayout.layoutWindow.show()
-            case .grid:
-                currentLayout.gridLayoutWindow?.show()
-                currentLayout.gridLayoutWindow?.setAnchorAtMousePosition()
-        }
+    let delay = max(0, appSettings.snapKeyDelay)
+    if delay == 0 {
+        activateSnapKeyOverlay()
+    } else {
+        let task = DispatchWorkItem { activateSnapKeyOverlay() }
+        pendingSnapKeyTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(delay), execute: task)
     }
 }
 
 let spaceLayoutPreferences = SpaceLayoutPreferences()
 
 func onMouseDown(event: NSEvent) {
+    resetSnapKeyActivation(hideOverlay: true)
     draggedWindowElement = nil
     draggedWindowInitialPosition = nil
     toLeaveElement = nil
@@ -99,12 +126,14 @@ func onMouseDown(event: NSEvent) {
 }
 
 func startEditing() {
+    resetSnapKeyActivation(hideOverlay: true)
     setIsFitting(false)
     isEditing = true
     userLayouts.currentLayout.layoutWindow.startEditing()
 }
 
 func stopEditing() {
+    resetSnapKeyActivation(hideOverlay: true)
     setIsFitting(false)
     isEditing = false
     userLayouts.currentLayout.materializedLayoutWindow?.stopEditing()
@@ -112,6 +141,7 @@ func stopEditing() {
 
 @discardableResult
 func toggleEditing() -> Bool {
+    resetSnapKeyActivation(hideOverlay: true)
     setIsFitting(false)
     isEditing = !isEditing
     if isEditing {
@@ -786,6 +816,8 @@ func onMouseDragged(event: NSEvent) {
 
 func onMouseUp(event: NSEvent) {
     guard macsyReady.isReady else { return }
+
+    resetSnapKeyActivation()
 
     defer {
         draggedWindowElement = nil

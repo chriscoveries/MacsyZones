@@ -429,6 +429,14 @@ struct Main: View {
                         .labelsHidden()
                         .pickerStyle(MenuPickerStyle())
                         .onChange(of: settings.snapKey) { appSettings.save() }
+
+                        Text("Delay: \(String(format: "%.2f", Double(settings.snapKeyDelay) / 1000.0))s")
+                            .font(.caption2)
+                        Slider(value: Binding(
+                            get: { Double(settings.snapKeyDelay) },
+                            set: { settings.snapKeyDelay = Int($0) }
+                        ), in: 0...2000, step: 100)
+                        .onChange(of: settings.snapKeyDelay) { appSettings.save() }
                         
                         Toggle("Snap with right click", isOn: $settings.snapWithRightClick)
                             .toggleStyle(.checkbox)

@@ -652,6 +652,35 @@ class EditorSectionWindow: NSWindow {
     override var areCursorRectsEnabled: Bool { true }
 }
 
+// Editor zones are separate windows. A covered zone cannot receive a normal
+// click, so modifier-click brings the next zone under the pointer to the front.
+func cycleOverlappingEditZone(on event: NSEvent) -> Bool {
+    guard isEditing,
+          let clickedWindow = event.window,
+          let layout = userLayouts.currentLayout.materializedLayoutWindow,
+          layout.sectionWindows.contains(where: { $0.editorWindow === clickedWindow })
+    else { return false }
+
+    let configuredKeys = [appSettings.snapKey, appSettings.modifierKey]
+        .compactMap { modifierFlag(for: $0) }
+    guard event.modifierFlags.contains(.option) ||
+          configuredKeys.contains(where: { event.modifierFlags.contains($0) })
+    else { return false }
+
+    let screenPoint = clickedWindow.convertPoint(toScreen: event.locationInWindow)
+    let overlappingZones = layout.sectionWindows
+        .filter { $0.editorWindow.isVisible && $0.editorWindow.frame.contains(screenPoint) }
+        .sorted { $0.number < $1.number }
+
+    guard overlappingZones.count > 1,
+          let currentIndex = overlappingZones.firstIndex(where: { $0.editorWindow === clickedWindow })
+    else { return false }
+
+    let nextZone = overlappingZones[(currentIndex + 1) % overlappingZones.count]
+    nextZone.editorWindow.makeKeyAndOrderFront(nil)
+    return true
+}
+
 class SectionWindow: Hashable, ObservableObject {
     @Published var number: Int = 0
     @Published var isHovered: Bool = false

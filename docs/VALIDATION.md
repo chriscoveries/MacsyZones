@@ -51,6 +51,33 @@ snap after screen or Space changes. Run each on single and dual displays,
 including an application with a constrained minimum window size. Treat UI
 checks as pending until recorded against the exact installed commit.
 
+## Snap-key delay and overlapping editor zones — 2026-10-23
+
+The Snap Key setting now has its own 0–2000 ms delay slider (100 ms steps),
+matching the Modifier Key control. Its default is **0 ms**; older settings
+files load this default without migration. The timer begins when an actual
+window-move notification is observed while the snap key is held. Releasing
+the snap key, releasing the mouse, or entering Edit Zones cancels a pending
+timer. Snap-key activation is still subject to macOS Accessibility move-event
+delivery; the zero-delay setting adds no application-side waiting.
+
+In Edit Zones, **Shift-click** (the default Snap Key), **Modifier Key-click**,
+or **Option-click** on an overlap brings the next editor zone at that point
+to the front. Repeated modified clicks cycle the overlapping zones in zone
+number order; the following ordinary drag edits the selected zone. The click
+is consumed only when at least two visible editor zones contain that point.
+For custom snap/modifier keys, use the configured key or Option.
+
+The macOS GUI acceptance pass is pending. Check zero-delay appearance on a
+Shift-drag, Shift held before and after drag start, cancellation if Shift or
+mouse is released during a nonzero delay, overlay removal after Shift release
+mid-drag, and a Shift-drag after switching Spaces. In Edit Zones, create two
+partly overlapping zones and cycle each into the foreground through modified
+clicks, then drag and resize each. Also check three fully nested zones,
+unmodified clicks, modifier-click outside overlaps, and custom Snap Key and
+Modifier Key settings. Build-only CI cannot verify event routing or window
+stacking in a live macOS session.
+
 ## Installed maintained fork
 
 The installed app is `/Applications/MacsyZones.app`, source revision

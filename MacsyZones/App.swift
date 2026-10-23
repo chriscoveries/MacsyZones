@@ -50,6 +50,7 @@ var updateFailedDialog: UpdateFailedDialog?
 var mouseUpMonitor: Any?
 var mouseDownMonitor: Any?
 var mouseDragMonitor: Any?
+var editorZoneClickMonitor: Any?
 
 var isPreview: Bool {
     return ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -368,6 +369,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sen
             debugLog("All apps are being observed for window movement.")
             
             Task { @MainActor in
+                // macOS can deliver Control-click as rightMouseDown.
+                editorZoneClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { event in
+                    cycleOverlappingEditZone(on: event) ? nil : event
+                }
+
                 mouseDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { event in
                     onMouseDown(event: event)
                 }
@@ -698,30 +704,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sen
                     snapKey = .option
                 }
                 
-                if appSettings.selectPerDesktopLayout {
-                    if let layoutName = spaceLayoutPreferences.getCurrent() {
-                        userLayouts.setCurrentLayout(name: layoutName)
-                    }
-                }
-                
                 if event.modifierFlags.contains(snapKey) && !isFitting && isMovingAWindow {
                     snapKeyUsed = true
-                    setIsFitting(true)
-                    userLayouts.currentLayout.show()
-                    if userLayouts.currentLayout.layoutType == .grid {
-                        userLayouts.currentLayout.gridLayoutWindow?.setAnchorAtMousePosition()
-                    }
-                } else if isFitting && snapKeyUsed {
-                    snapKeyUsed = false
-                    setIsFitting(false)
-                    if !isQuickSnapping {
-                        userLayouts.currentLayout.hide()
-                    }
+                    checkSnapKeyOnWindowMoveStart()
                 }
                 
                 if !event.modifierFlags.contains(snapKey) {
+                    resetSnapKeyActivation(hideOverlay: true)
                     snapKeyUsed = false
                 }
+            } else {
+                resetSnapKeyActivation(hideOverlay: true)
             }
             
             if !snapKeyUsed && appSettings.modifierKey != "None" && event.type == .flagsChanged {
@@ -795,6 +788,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sen
     func applicationWillTerminate(_ notification: Notification) {
         if let mouseUpMonitor = mouseUpMonitor {
             NSEvent.removeMonitor(mouseUpMonitor)
+        }
+        if let editorZoneClickMonitor = editorZoneClickMonitor {
+            NSEvent.removeMonitor(editorZoneClickMonitor)
         }
     }
 }

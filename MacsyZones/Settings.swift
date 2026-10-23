@@ -15,6 +15,7 @@ enum SnapHighlightStrategy: String, Codable {
 struct AppSettingsData: Codable {
     var modifierKey: String?
     var snapKey: String?
+    var snapKeyDelay: Int?
     var modifierKeyDelay: Int?
     var fallbackToPreviousSize: Bool?
     var onlyFallbackToPreviousSizeWithUserEvent: Bool?
@@ -39,6 +40,7 @@ class AppSettings: UserData, ObservableObject {
     // Default values
     private static let defaultModifierKey: String = "Control"
     private static let defaultSnapKey: String = "Shift"
+    private static let defaultSnapKeyDelay: Int = 0
     private static let defaultModifierKeyDelay: Int = 1000
     private static let defaultFallbackToPreviousSize: Bool = true
     private static let defaultOnlyFallbackToPreviousSizeWithUserEvent: Bool = true
@@ -60,6 +62,7 @@ class AppSettings: UserData, ObservableObject {
     
     @Published var modifierKey: String = defaultModifierKey
     @Published var snapKey: String = defaultSnapKey
+    @Published var snapKeyDelay: Int = defaultSnapKeyDelay
     @Published var modifierKeyDelay: Int = defaultModifierKeyDelay
     @Published var fallbackToPreviousSize: Bool = defaultFallbackToPreviousSize
     @Published var onlyFallbackToPreviousSizeWithUserEvent: Bool = defaultOnlyFallbackToPreviousSizeWithUserEvent
@@ -93,6 +96,7 @@ class AppSettings: UserData, ObservableObject {
             
             self.modifierKey = settings.modifierKey ?? modifierKey
             self.snapKey = settings.snapKey ?? snapKey
+            self.snapKeyDelay = settings.snapKeyDelay ?? snapKeyDelay
             self.modifierKeyDelay = settings.modifierKeyDelay ?? modifierKeyDelay
             self.fallbackToPreviousSize = settings.fallbackToPreviousSize ?? fallbackToPreviousSize
             self.onlyFallbackToPreviousSizeWithUserEvent = settings.onlyFallbackToPreviousSizeWithUserEvent ?? onlyFallbackToPreviousSizeWithUserEvent
@@ -121,6 +125,7 @@ class AppSettings: UserData, ObservableObject {
             let settings = AppSettingsData(
                 modifierKey: modifierKey,
                 snapKey: snapKey,
+                snapKeyDelay: snapKeyDelay,
                 modifierKeyDelay: modifierKeyDelay,
                 fallbackToPreviousSize: fallbackToPreviousSize,
                 onlyFallbackToPreviousSizeWithUserEvent: onlyFallbackToPreviousSizeWithUserEvent,
@@ -155,6 +160,7 @@ class AppSettings: UserData, ObservableObject {
     func resetToDefaults() {
         modifierKey = Self.defaultModifierKey
         snapKey = Self.defaultSnapKey
+        snapKeyDelay = Self.defaultSnapKeyDelay
         modifierKeyDelay = Self.defaultModifierKeyDelay
         fallbackToPreviousSize = Self.defaultFallbackToPreviousSize
         onlyFallbackToPreviousSizeWithUserEvent = Self.defaultOnlyFallbackToPreviousSizeWithUserEvent
