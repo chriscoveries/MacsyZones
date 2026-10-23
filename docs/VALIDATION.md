@@ -20,6 +20,30 @@ visual response, and start-at-login. Capture intended and observed window frames
 for any alignment discrepancy. The September installed-build results below are
 historical and must not be treated as validation of this integration.
 
+## Fast drag path — 2026-10-23
+
+The maintained fork's performance pass removes the 350 ms fade from normal
+zone/grid overlay show and hide and the 250 ms layout-switcher fade. Immediate
+hide also eliminates stale fade completion callbacks hiding a reopened overlay.
+Ordinary unsnapped drags no longer materialize lazy zone windows merely to
+clear hover state. An unplaced window movement avoids the AX role, subrole and
+position reads previously made on every processed move notification (up to
+120 per second). The remaining position read happens when a placed window
+needs previous-size recovery. Hover uses zone frames directly; grid-cell
+changes only publish when the cell changes. The grid NSHostingView is reused
+while size/rows/columns are unchanged. App activation now schedules one scan,
+and window recovery only queries the owning PID's AX window list.
+
+These are source-path and animation-duration comparisons, **not measured wall
+clock improvements**. The CI Release build and model checks validate the Swift
+source but cannot measure a running Accessibility client on a desktop. On the
+canonical Mac, measure (1) snap-key-to-overlay visibility, (2) hover update
+latency while dragging between zones, (3) idle CPU with Stage Manager, (4)
+frame error and settling time after zone/grid placement, and (5) the first
+snap after screen or Space changes. Run each on single and dual displays,
+including an application with a constrained minimum window size. Treat UI
+checks as pending until recorded against the exact installed commit.
+
 ## Installed maintained fork
 
 The installed app is `/Applications/MacsyZones.app`, source revision

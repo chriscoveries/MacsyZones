@@ -236,7 +236,7 @@ final class WindowObserverManager {
         debugLog("Reconcile: pid \(pid) is missing \(missing.count) window(s) from AX; hunting for them.")
 
         for windowID in missing {
-            var element = retrieveFreshWindowElement(for: windowID)
+            var element = retrieveFreshWindowElement(for: windowID, pid: pid)
 
             if element == nil {
                 let title = cgList.first {
@@ -244,7 +244,7 @@ final class WindowObserverManager {
                 }?[kCGWindowName as String] as? String
 
                 if let title, !title.isEmpty,
-                   let found = retrieveFreshWindowElementByTitle(title: title) {
+                   let found = retrieveFreshWindowElementByTitle(title: title, pid: pid) {
                     element = found.element
                 }
             }
@@ -588,16 +588,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sen
         if let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication {
             let pid = app.processIdentifier
             Task { @MainActor in
-                guard !WindowObserverManager.shared.hasObservedWindows(forPid: pid) else { return }
-                DispatchQueue.global(qos: .utility).async {
-                    self.scanWindows(forPid: pid)
-                }
-            }
-        }
-
-        if let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication {
-            let pid = app.processIdentifier
-            Task { @MainActor in
                 DispatchQueue.global(qos: .utility).async {
                     self.scanWindows(forPid: pid)
                 }
@@ -645,13 +635,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, Sen
 
         Task { @MainActor in
             self.startObserving(pid: pid)
-            WindowObserverManager.shared.reconcile(pid: pid, axWindows: windowList)
-        }
-
-        for window in windowList {
-            Task { @MainActor in
+            for window in windowList {
                 self.startObserving(pid: pid, element: window)
             }
+            WindowObserverManager.shared.reconcile(pid: pid, axWindows: windowList)
         }
     }
     

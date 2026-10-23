@@ -733,13 +733,21 @@ class SectionWindow: Hashable, ObservableObject {
     }
     
     func reset(sectionConfig: SectionConfig) {
-        number = sectionConfig.number!
+        if number != sectionConfig.number! {
+            number = sectionConfig.number!
+        }
         self.sectionConfig = sectionConfig
         
         let contentRect = sectionConfig.getRect()
-        window.setFrame(contentRect, display: true, animate: false)
-        editorWindow.setFrame(contentRect, display: true, animate: false)
-        windowSize = contentRect.size
+        if window.frame != contentRect {
+            window.setFrame(contentRect, display: true, animate: false)
+        }
+        if editorWindow.frame != contentRect {
+            editorWindow.setFrame(contentRect, display: true, animate: false)
+        }
+        if windowSize != contentRect.size {
+            windowSize = contentRect.size
+        }
         
         editorWindowDelegate?.originalScreen = editorWindow.screen
     }
@@ -1433,7 +1441,6 @@ class LayoutWindow: ObservableObject {
     }
     
     func show(showLayouts: Bool = true, showSnapResizers: Bool = false, showSwitcher: Bool = true) {
-        let wasShwon = isShown
         isShown = true
 
         if appSettings.enableLayoutSwitcher && showLayouts && showSwitcher,
@@ -1441,18 +1448,10 @@ class LayoutWindow: ObservableObject {
             layoutSwitcherPanel.show(on: snapScreen)
         }
         
-        if !wasShwon {
-            window.alphaValue = 0
-            window.orderFront(nil)
-            
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.35
-                window.animator().alphaValue = 1
-            }
-        } else {
-            window.alphaValue = 1
-            window.orderFront(nil)
-        }
+        // Snap overlays should appear at once. A queued fade-out completion
+        // could otherwise order out an overlay that has already been reopened.
+        window.alphaValue = 1
+        window.orderFront(nil)
         
         editorBarWindow.orderOut(nil)
         
@@ -1470,23 +1469,13 @@ class LayoutWindow: ObservableObject {
             for sectionWindow in sortedSectionWindows {
                 sectionWindow.editorWindow.orderOut(nil)
                 sectionWindow.reset(sectionConfig: sectionWindow.sectionConfig)
-                sectionWindow.window.alphaValue = 0
-                
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.35
-                    sectionWindow.window.animator().alphaValue = 1
-                }
-                
+                sectionWindow.window.alphaValue = 1
                 sectionWindow.window.orderFrontRegardless()
             }
             
             for sectionResizer in sectionResizers {
-                sectionResizer.alphaValue = 0
+                sectionResizer.alphaValue = 1
                 sectionResizer.orderFront(nil)
-                NSAnimationContext.runAnimationGroup { context in
-                    context.duration = 0.35
-                    sectionResizer.animator().alphaValue = 1
-                }
             }
         }
         
@@ -1536,13 +1525,8 @@ class LayoutWindow: ObservableObject {
                                                          relatedSections: relatedSections,
                                                          mode: .vertical)
                         sectionResizer.setFrame(NSRect(x: buttonX, y: buttonY, width: verticalButtonWidth, height: verticalButtonHeight), display: true, animate: false)
-                        sectionResizer.alphaValue = 0
+                        sectionResizer.alphaValue = 1
                         sectionResizer.orderFront(nil)
-                        
-                        NSAnimationContext.runAnimationGroup { context in
-                            context.duration = 0.35
-                            sectionResizer.animator().alphaValue = 1
-                        }
                         
                         sectionResizers.append(sectionResizer)
                     }
@@ -1583,13 +1567,8 @@ class LayoutWindow: ObservableObject {
                         
                         let sectionResizer = SnapResizer(width: horizontalButtonWidth, height: horizontalButtonHeight, relatedSections: relatedSections, mode: .horizontal)
                         sectionResizer.setFrame(NSRect(x: buttonX, y: buttonY, width: horizontalButtonWidth, height: horizontalButtonHeight), display: true, animate: false)
-                        sectionResizer.alphaValue = 0
+                        sectionResizer.alphaValue = 1
                         sectionResizer.orderFront(nil)
-                        
-                        NSAnimationContext.runAnimationGroup { context in
-                            context.duration = 0.35
-                            sectionResizer.animator().alphaValue = 1
-                        }
                         
                         sectionResizers.append(sectionResizer)
                     }
@@ -1603,31 +1582,16 @@ class LayoutWindow: ObservableObject {
         layoutSwitcherPanel.hide()
         
         for sectionResizer in sectionResizers {
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.35
-                sectionResizer.animator().alphaValue = 0
-            }, completionHandler: {
-                sectionResizer.orderOut(nil)
-            })
+            sectionResizer.orderOut(nil)
         }
         sectionResizers = sectionResizers.filter { $0.isMouseOverResizer }
         
         for sectionWindow in sectionWindows {
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.35
-                sectionWindow.window.animator().alphaValue = 0
-            }, completionHandler: {
-                sectionWindow.window.orderOut(nil)
-                sectionWindow.editorWindow.orderOut(nil)
-            })
+            sectionWindow.window.orderOut(nil)
+            sectionWindow.editorWindow.orderOut(nil)
         }
         
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.35
-            window.animator().alphaValue = 0
-        }, completionHandler: {
-            self.window.orderOut(nil)
-        })
+        window.orderOut(nil)
         
         editorBarWindow.orderOut(nil)
     }
@@ -2018,9 +1982,9 @@ class GridSelectionState: ObservableObject {
     }
 
     func reset() {
-        anchorCell = nil
-        currentCell = nil
-        isSelecting = false
+        if anchorCell != nil { anchorCell = nil }
+        if currentCell != nil { currentCell = nil }
+        if isSelecting { isSelecting = false }
     }
 }
 
@@ -2079,6 +2043,9 @@ class GridLayoutWindow {
     var window: NSWindow
     var selectionState = GridSelectionState()
     var isShown = false
+    private var renderedSize: CGSize?
+    private var renderedRows: Int?
+    private var renderedColumns: Int?
 
     init(name: String, gridConfig: GridConfig) {
         self.name = name
@@ -2106,16 +2073,22 @@ class GridLayoutWindow {
     }
 
     func updateView() {
+        let size = window.frame.size
+        guard renderedSize != size || renderedRows != gridConfig.rows ||
+              renderedColumns != gridConfig.columns else { return }
+
         let view = GridOverlayView(width: window.frame.width,
                                                     height: window.frame.height,
                                                     rows: gridConfig.rows,
                                                     columns: gridConfig.columns,
                                                     selectionState: selectionState)
         window.contentView = NSHostingView(rootView: view)
+        renderedSize = size
+        renderedRows = gridConfig.rows
+        renderedColumns = gridConfig.columns
     }
 
     func show() {
-        let wasShown = isShown
         isShown = true
 
         if let focusedScreen = getFocusedScreen() {
@@ -2129,31 +2102,16 @@ class GridLayoutWindow {
         selectionState.reset()
         updateView()
 
-        if !wasShown {
-            window.alphaValue = 0
-            window.orderFront(nil)
-
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.35
-                window.animator().alphaValue = 1
-            }
-        } else {
-            window.alphaValue = 1
-            window.orderFront(nil)
-        }
+        window.alphaValue = 1
+        window.orderFront(nil)
     }
 
     func hide() {
         isShown = false
         layoutSwitcherPanel.hide()
 
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.35
-            self.window.animator().alphaValue = 0
-        }, completionHandler: {
-            self.window.orderOut(nil)
-            self.selectionState.reset()
-        })
+        window.orderOut(nil)
+        selectionState.reset()
     }
 
     func setAnchorAtMousePosition() {
@@ -2173,7 +2131,10 @@ class GridLayoutWindow {
         let mouseLocation = NSEvent.mouseLocation
 
         if let cell = gridConfig.cellAt(point: mouseLocation, on: screen) {
-            selectionState.currentCell = GridCell(row: cell.row, col: cell.col)
+            let nextCell = GridCell(row: cell.row, col: cell.col)
+            if selectionState.currentCell != nextCell {
+                selectionState.currentCell = nextCell
+            }
         }
     }
 

@@ -376,18 +376,9 @@ final class LayoutSwitcherPanel {
 
         model.localMouse = nil
         model.dwellingName = nil
-
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.25
-            self.panel.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            guard let self else { return }
-            if !self.isShown {
-                self.panel.orderOut(nil)
-                self.model.isVisible = false
-                self.model.isExpanded = true
-            }
-        })
+        panel.orderOut(nil)
+        model.isVisible = false
+        model.isExpanded = true
     }
 
     private func present(on screen: NSScreen, mode newMode: LayoutSwitcherMode) {
@@ -405,13 +396,8 @@ final class LayoutSwitcherPanel {
             model.localMouse = nil
             model.dwellingName = nil
 
-            panel.alphaValue = 0
+            panel.alphaValue = 1
             panel.orderFrontRegardless()
-
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.25
-                self.panel.animator().alphaValue = 1
-            }
 
             isShown = true
             model.isVisible = true

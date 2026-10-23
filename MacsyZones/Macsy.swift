@@ -187,19 +187,8 @@ func onObserverNotification(observer: AXObserver, element: AXUIElement, notifica
         if isEditing || isSnapResizing { return }
         if shouldThrottleWindowMove { return }
 
-        var position: CGPoint = .zero
-        var positionRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
-           let positionValue = positionRef {
-            AXValueGetValue(positionValue as! AXValue, AXValueType.cgPoint, &position)
-        }
-
         Task { @MainActor in
-            onWindowMoved(observer: observer,
-                          element: element,
-                          notification: notification,
-                          title: "",
-                          position: position)
+            onWindowMoved(element: element)
         }
 
     case kAXWindowCreatedNotification:
@@ -242,7 +231,7 @@ func getHoveredSectionWindow() -> SectionWindow? {
     debugLog("getHoveredSectionWindow(): isFitting = \(isFitting)")
     var hoveredSectionWindow: SectionWindow?
     
-    guard let focusedScreen = getFocusedScreen() else {
+    guard getFocusedScreen() != nil else {
         for layout in userLayouts.layouts.values {
             for sectionWindow in layout.materializedLayoutWindow?.sectionWindows ?? [] {
                 sectionWindow.isHovered = false
@@ -257,14 +246,9 @@ func getHoveredSectionWindow() -> SectionWindow? {
     if isFitting {
         if appSettings.snapHighlightStrategy != .centerProximity && appSettings.prioritizeCenterToSnap {
             for sectionWindow in userLayouts.currentLayout.layoutWindow.sectionWindows {
-                let screenSize = focusedScreen.frame
-                let bounds = sectionWindow.getBounds(for: focusedScreen)
-                let width = bounds.widthPercentage * screenSize.width
-                let height = bounds.heightPercentage * screenSize.height
-                let x = focusedScreen.frame.origin.x + (bounds.xPercentage * screenSize.width + width / 2) - 50
-                let y = focusedScreen.frame.origin.y + (bounds.yPercentage * screenSize.height + height / 2) - 50
-                
-                if mouseLocation.x > x && mouseLocation.x < x + 100 && mouseLocation.y > y && mouseLocation.y < y + 100 {
+                let frame = sectionWindow.window.frame
+                if abs(mouseLocation.x - frame.midX) < 50 &&
+                   abs(mouseLocation.y - frame.midY) < 50 {
                     hoveredSectionWindow = sectionWindow
                     break
                 }
@@ -274,25 +258,20 @@ func getHoveredSectionWindow() -> SectionWindow? {
         if hoveredSectionWindow == nil {
             // Select the best containing zone in one pass. Sorting all zones on
             // every move notification repeatedly recomputed their bounds.
-            let screenFrame = focusedScreen.frame
             var bestScore = CGFloat.infinity
             for sectionWindow in userLayouts.currentLayout.layoutWindow.sectionWindows {
-                let bounds = sectionWindow.getBounds(for: focusedScreen)
-                let width = bounds.widthPercentage * screenFrame.width
-                let height = bounds.heightPercentage * screenFrame.height
-                let x = screenFrame.minX + bounds.xPercentage * screenFrame.width
-                let y = screenFrame.minY + bounds.yPercentage * screenFrame.height
-
-                guard mouseLocation.x > x, mouseLocation.x < x + width,
-                      mouseLocation.y > y, mouseLocation.y < y + height else { continue }
+                // getBounds(for:) normalizes the window frame to screen
+                // percentages, which the old hot path immediately undid.
+                let frame = sectionWindow.window.frame
+                guard mouseLocation.x > frame.minX, mouseLocation.x < frame.maxX,
+                      mouseLocation.y > frame.minY, mouseLocation.y < frame.maxY else { continue }
 
                 let score: CGFloat
                 if appSettings.snapHighlightStrategy == .centerProximity {
-                    let dx = mouseLocation.x - (x + width / 2)
-                    let dy = mouseLocation.y - (y + height / 2)
+                    let dx = mouseLocation.x - frame.midX
+                    let dy = mouseLocation.y - frame.midY
                     score = dx * dx + dy * dy
                 } else {
-                    let frame = sectionWindow.window.frame
                     score = frame.width * frame.height
                 }
 
@@ -321,7 +300,7 @@ func getHoveredSectionWindow() -> SectionWindow? {
     return hoveredSectionWindow
 }
 
-func onWindowMoved(observer: AXObserver, element: AXUIElement, notification: CFString, title: String, position: CGPoint) {
+func onWindowMoved(element: AXUIElement) {
     guard macsyReady.isReady else { return }
 
     if let movingOnScreen = windowMovingOnScreen {
@@ -384,24 +363,8 @@ func onWindowMoved(observer: AXObserver, element: AXUIElement, notification: CFS
           !isQuickSnapping
     else { return }
     
-    var subroleRef: CFTypeRef?
-    AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleRef)
-    
-    let subrole = subroleRef as? String ?? "Unknown"
-    
-    if subrole != kAXStandardWindowSubrole {
-        return
-    }
-    
-    var roleRef: CFTypeRef?
-    AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
-    
-    let role = roleRef as? String ?? "Unknown"
-    
-    if role != kAXWindowRole {
-        debugLog("Element is not a window! Role: \(role), Subrole: \(subrole)")
-        return
-    }
+    // WindowObserverManager registers moved notifications only after checking
+    // AXRole and AXSubrole. Rechecking both on every drag costs two AX IPCs.
     
     if NSEvent.pressedMouseButtons & 1 != 0 {
         isMovingAWindow = true
@@ -417,7 +380,9 @@ func onWindowMoved(observer: AXObserver, element: AXUIElement, notification: CFS
 
     switch currentLayout.layoutType {
         case .zone:
-            if let hoveredSectionWindow = getHoveredSectionWindow() {
+            // Avoid creating all zone NSWindows during an ordinary drag.
+            // The lazy layout lifecycle must stay lazy until snapping starts.
+            if isFitting, let hoveredSectionWindow = getHoveredSectionWindow() {
                 toLeaveElement = element
                 toLeaveSectionWindow = hoveredSectionWindow
             }
@@ -440,6 +405,14 @@ func onWindowMoved(observer: AXObserver, element: AXUIElement, notification: CFS
     if isPlaced && !justDidMouseUp &&
         (!appSettings.onlyFallbackToPreviousSizeWithUserEvent || (NSEvent.pressedMouseButtons & 0x1) != 0)
     {
+        // Most dragged windows were never snapped. Ask AX for the position
+        // only when a placed window needs its original-size fallback.
+        var positionRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
+              let positionValue = positionRef as? AXValue else { return }
+        var position = CGPoint.zero
+        guard AXValueGetValue(positionValue, .cgPoint, &position) else { return }
+
         if placedWindowMoveStartPosition == nil {
             placedWindowMoveStartPosition = position
         }
@@ -614,7 +587,10 @@ func resizeAndMoveWindow(element: AXUIElement, newPosition: CGPoint, newSize: CG
         debugLog("Snap operation failed (position: \(lastPositionResult.rawValue), size: \(lastSizeResult.rawValue))")
 
         // A focused-window fallback can move an unrelated window if focus changed.
-        if let windowId, let freshElement = retrieveFreshWindowElement(for: windowId) {
+        var pid: pid_t = 0
+        if let windowId,
+           AXUIElementGetPid(element, &pid) == .success,
+           let freshElement = retrieveFreshWindowElement(for: windowId, pid: pid) {
             resizeAndMoveWindow(element: freshElement, newPosition: newPosition, newSize: newSize, retries: retries, useFallback: false)
             return
         }
@@ -680,38 +656,31 @@ func resizeWindow(element: AXUIElement, newSize: CGSize, useFallback: Bool = tru
         if result != .success {
             debugLog("Failed to set window size, error code: \(result.rawValue)")
 
+            var pid: pid_t = 0
             if useFallback,
                let windowId = getWindowID(from: element),
-               let freshElement = retrieveFreshWindowElement(for: windowId) {
+               AXUIElementGetPid(element, &pid) == .success,
+               let freshElement = retrieveFreshWindowElement(for: windowId, pid: pid) {
                 resizeWindow(element: freshElement, newSize: newSize, useFallback: false)
             }
         }
     }
 }
 
-func retrieveFreshWindowElement(for windowId: UInt32) -> AXUIElement? {
+func retrieveFreshWindowElement(for windowId: UInt32, pid: pid_t) -> AXUIElement? {
     debugLog("Attempting to retrieve fresh window element for window ID: \(windowId)")
-    
-    let runningApps = NSWorkspace.shared.runningApplications.filter {
-        $0.activationPolicy == .regular
-    }
-    
-    for app in runningApps {
-        let pid = app.processIdentifier as pid_t
-        let appElement = AXUIElementCreateApplication(pid)
-        
-        var windowListRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowListRef)
-        
-        if result != .success { continue }
-        
-        guard let windowList = windowListRef as? [AXUIElement] else { continue }
-        
-        for window in windowList {
-            if let currentWindowId = getWindowID(from: window), currentWindowId == windowId {
-                debugLog("Successfully retrieved fresh window element for window ID: \(windowId)")
-                return window
-            }
+
+    // The caller knows which app owns this window. Searching every running
+    // app here multiplied slow cross-process AX requests during recovery.
+    let appElement = AXUIElementCreateApplication(pid)
+    var windowListRef: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowListRef) == .success,
+          let windowList = windowListRef as? [AXUIElement] else { return nil }
+
+    for window in windowList {
+        if getWindowID(from: window) == windowId {
+            debugLog("Successfully retrieved fresh window element for window ID: \(windowId)")
+            return window
         }
     }
     
@@ -720,11 +689,11 @@ func retrieveFreshWindowElement(for windowId: UInt32) -> AXUIElement? {
     return nil
 }
 
-func retrieveFreshWindowElementByTitle(title: String, approximatePosition: CGPoint? = nil) -> (element: AXUIElement, windowId: UInt32)? {
+func retrieveFreshWindowElementByTitle(title: String, approximatePosition: CGPoint? = nil, pid: pid_t? = nil) -> (element: AXUIElement, windowId: UInt32)? {
     debugLog("Attempting to retrieve fresh window element by title: \(title)")
     
     let runningApps = NSWorkspace.shared.runningApplications.filter {
-        $0.activationPolicy == .regular
+        $0.activationPolicy == .regular && (pid == nil || $0.processIdentifier == pid)
     }
     
     var candidates: [(element: AXUIElement, windowId: UInt32, position: CGPoint?)] = []
