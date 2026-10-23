@@ -32,7 +32,8 @@ position reads previously made on every processed move notification (up to
 needs previous-size recovery. Hover uses zone frames directly; grid-cell
 changes only publish when the cell changes. The grid NSHostingView is reused
 while size/rows/columns are unchanged. App activation now schedules one scan,
-and window recovery only queries the owning PID's AX window list.
+and window recovery only queries the owning PID's AX window list. A fresh
+manual drag cancels any remaining frame correction for that same window ID.
 
 These are source-path and animation-duration comparisons, **not measured wall
 clock improvements**. The CI Release build and model checks validate the Swift

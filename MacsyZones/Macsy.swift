@@ -398,6 +398,11 @@ func onWindowMoved(element: AXUIElement) {
         debugLog("Failed to get window ID")
         return
     }
+
+    if NSEvent.pressedMouseButtons & 1 != 0 {
+        // A new manual drag takes precedence over a pending snap correction.
+        snapMoveGenerations.removeValue(forKey: windowId)
+    }
     
     let isPlaced = PlacedWindows.isPlaced(windowId: windowId)
     let originalSize = OriginalWindowProperties.getWindowSize(for: windowId)
@@ -409,9 +414,10 @@ func onWindowMoved(element: AXUIElement) {
         // only when a placed window needs its original-size fallback.
         var positionRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
-              let positionValue = positionRef as? AXValue else { return }
+              let positionValue = positionRef,
+              CFGetTypeID(positionValue) == AXValueGetTypeID() else { return }
         var position = CGPoint.zero
-        guard AXValueGetValue(positionValue, .cgPoint, &position) else { return }
+        guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position) else { return }
 
         if placedWindowMoveStartPosition == nil {
             placedWindowMoveStartPosition = position
