@@ -152,6 +152,11 @@ final class WindowObserverManager {
     func observeWindow(pid: pid_t, element: AXUIElement, attempt: Int = 0) {
         guard pid > 0 else { return }
 
+        let windowID = getWindowID(from: element)
+        if let windowID, entries[pid]?.observedWindowIDs.contains(windowID) == true {
+            return
+        }
+
         switch checkStandardWindow(element) {
         case .notStandard:
             return
@@ -167,9 +172,6 @@ final class WindowObserverManager {
             return
         }
         guard var entry = entries[pid] else { return }
-
-        let windowID = getWindowID(from: element)
-        if let windowID, entry.observedWindowIDs.contains(windowID) { return }
 
         let movedStatus = AXObserverAddNotification(entry.observer, element, kAXWindowMovedNotification as CFString, nil)
         let destroyedStatus = AXObserverAddNotification(entry.observer, element, kAXUIElementDestroyedNotification as CFString, nil)

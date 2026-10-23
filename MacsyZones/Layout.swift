@@ -1457,7 +1457,9 @@ class LayoutWindow: ObservableObject {
         
         if showLayouts {
             if let focusedScreen = getFocusedScreen() {
-                window.setFrame(focusedScreen.visibleFrame, display: true, animate: false)
+                if window.frame != focusedScreen.visibleFrame {
+                    window.setFrame(focusedScreen.visibleFrame, display: true, animate: false)
+                }
             }
             
             let sortedSectionWindows = sectionWindows.sorted { 
@@ -1608,7 +1610,9 @@ class LayoutWindow: ObservableObject {
         window.orderFront(nil)
         
         if let focusedScreen = getFocusedScreen() {
-            window.setFrame(focusedScreen.visibleFrame, display: true, animate: false)
+            if window.frame != focusedScreen.visibleFrame {
+                window.setFrame(focusedScreen.visibleFrame, display: true, animate: false)
+            }
             
             for sectionWindow in sectionWindows {
                 sectionWindow.startEditing()
@@ -2092,7 +2096,9 @@ class GridLayoutWindow {
         isShown = true
 
         if let focusedScreen = getFocusedScreen() {
-            window.setFrame(focusedScreen.visibleFrame, display: true, animate: false)
+            if window.frame != focusedScreen.visibleFrame {
+                window.setFrame(focusedScreen.visibleFrame, display: true, animate: false)
+            }
 
             if appSettings.enableLayoutSwitcher {
                 layoutSwitcherPanel.show(on: focusedScreen)
