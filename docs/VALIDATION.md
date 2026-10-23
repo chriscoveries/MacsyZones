@@ -11,6 +11,9 @@ borderless zone's AX target directly from its AppKit frame. Hover selection
 updates now avoid redundant SwiftUI publishes and window raises.
 
 These changes still require a clean Xcode Release build and macOS UI checks.
+The first CI compilation exposed two-argument SwiftUI `onChange` calls that
+require macOS 14, while upstream's recommended deployment target resolved lower.
+The maintained project now declares macOS 14 as its minimum target.
 Confirm zone and grid placement, QuickSnapper, multi-monitor movement, per-app
 minimum sizes, repeated snapping before previous corrections finish, drag-hover
 visual response, and start-at-login. Capture intended and observed window frames
