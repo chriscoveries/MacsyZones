@@ -32,7 +32,7 @@ expect(graph.name == zone.name && graph.sectionConfigs[1]?.name == "changed whil
 expect(graph.sectionWindows.count == 2 && graph.showCalls == 1, "show forwards to materialized zone")
 zone.hideAllWindows()
 expect(!graph.isShown, "hideAllWindows clears isShown")
-expect(graph.sectionWindows.allSatisfy { !$0.isHovered && $0.window.orderOutCalls == 1 && $0.editorWindow.orderOutCalls == 1 }, "hideAllWindows clears hover and hides section/editor windows")
+expect(graph.sectionWindows.allSatisfy { !$0.isHovered && $0.window.orderOutCalls == 1 && $0.editorWindow == nil }, "hideAllWindows leaves cold zone editors unallocated")
 expect(graph.window.orderOutCalls == 1 && graph.sectionResizers.allSatisfy { $0.orderOutCalls == 1 }, "hideAllWindows hides parent/resizers")
 zone.show(); zone.hide()
 expect(zone.layoutWindow === graph && LayoutWindow.allocations == 1, "repeat zone show/hide reuses graph")
@@ -40,8 +40,18 @@ expect(graph.hideCalls == 1 && graph.showCalls == 2, "show/hide delegation remai
 zone.sectionConfigs[1]?.name = "changed while warm"
 expect(graph.sectionConfigs[1]?.name == "changed while warm" && graph.sectionWindows.first { $0.number == 1 }?.sectionConfig.name == "changed while warm", "warm config changes propagate to graph and section")
 userLayouts.currentLayout = zone
-startEditing(); stopEditing()
-expect(graph.startEditingCalls == 1 && graph.stopEditingCalls == 1 && LayoutWindow.allocations == 1, "editing reuses existing zone graph")
+startEditing()
+let firstEditors = graph.sectionWindows.compactMap { $0.editorWindow }
+expect(firstEditors.count == 2, "Edit Zones creates one editor per active zone")
+stopEditing()
+expect(graph.sectionWindows.allSatisfy { $0.editorWindow == nil }, "leaving editing releases every editor")
+startEditing()
+expect(zip(graph.sectionWindows, firstEditors).allSatisfy { zone, oldEditor in
+    guard let newEditor = zone.editorWindow else { return false }
+    return newEditor !== oldEditor
+}, "re-entering editing creates fresh editor windows")
+stopEditing()
+expect(graph.startEditingCalls == 2 && graph.stopEditingCalls == 2 && LayoutWindow.allocations == 1, "editing reuses the cached snap graph")
 expect(zone.gridLayoutWindow == nil && GridLayoutWindow.allocations == 0, "zone grid accessor does not create grid graph")
 
 let grid = grids[0]

@@ -14,9 +14,12 @@ final class SectionWindow {
     var number: Int? { sectionConfig.number }
     var isHovered = true
     let window = FakeWindow()
-    let editorWindow = FakeWindow()
+    // Snap-only use never allocates a fake editor. Editing creates and owns it.
+    var editorWindow: FakeWindow?
     init(_ config: SectionConfig) { sectionConfig = config }
     func reset(sectionConfig: SectionConfig) { self.sectionConfig = sectionConfig }
+    func startEditing() { if editorWindow == nil { editorWindow = FakeWindow() } }
+    func stopEditing() { editorWindow = nil }
 }
 final class LayoutWindow {
     static var allocations = 0
@@ -41,8 +44,14 @@ final class LayoutWindow {
         showCalls += 1; isShown = true
     }
     func hide() { hideCalls += 1; isShown = false }
-    func startEditing() { startEditingCalls += 1 }
-    func stopEditing() { stopEditingCalls += 1 }
+    func startEditing() {
+        startEditingCalls += 1
+        for zone in sectionWindows { zone.startEditing() }
+    }
+    func stopEditing() {
+        stopEditingCalls += 1
+        for zone in sectionWindows { zone.stopEditing() }
+    }
     func closeAllWindows() { closeAllWindowsCalls += 1 }
 }
 final class GridLayoutWindow {
