@@ -6,6 +6,8 @@ Historical snapshot checked September 8, 2026. Upstream merged #103, #104,
 the previous review and validation evidence; its "open" labels and push
 commands describe the historical state and are not current instructions.
 **Do not submit or push upstream without Chris's explicit authorization.**
+For the current 3.1.1 changes, see the proposed scoped series in
+[UPSTREAM_SERIES.md](UPSTREAM_SERIES.md). The older commands below are history.
 
 At the time of this snapshot, all five PRs targeted `rohanrhu/MacsyZones:main`
 from `eafire15/MacsyZones`. They already exist; update their branches instead of

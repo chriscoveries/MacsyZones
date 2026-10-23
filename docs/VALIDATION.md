@@ -93,14 +93,31 @@ and the layout's mouse monitor, and closes the grid backing window. Section
 backreferences and editor callbacks no longer strongly own their parent.
 Ordinary layout hiding remains cached to preserve fast switching. The updated
 lazy-layout model tests check disposal of cold and warm zone/grid graphs and
-re-creation after disposal (144 assertions); macOS CI and live UI validation
-are pending for this follow-up.
+re-creation after disposal (144 assertions). The unsigned macOS Release build
+and both lifecycle checks passed in [fork CI run 39970254733](https://github.com/chriscoveries/MacsyZones/actions/runs/39970254733).
+Live editing/UI validation remains pending.
 
 Capture the user-observed ~250 MB baseline with the same Activity Monitor
 metric before and after installing this source. Repeat create/delete/save/cancel
 editing, switch among layouts, test live snap resizers, and use Instruments to
 count retained NSWindow/NSHostingView objects. See [MEMORY.md](MEMORY.md).
 No MB reduction has yet been measured.
+
+## Lazy zone editor — 2026-10-24
+
+The next fork-only change delays construction of zone editor windows, their
+SwiftUI views and the editor toolbar until Edit Zones starts. Exit from editing
+detaches and closes these windows, while the borderless snap overlays remain
+cached. Existing editor geometry helpers can read the snap-frame fallback when
+an editor has not yet been created. This should reduce idle retained editor
+graphs after normal snapping and after an editing session. The editor may take
+longer to appear on each entry, so time that action separately from dragging.
+
+Build and model-test results for this specific change must be recorded against
+its eventual remote SHA. Then verify Save/Cancel, adding and deleting zones,
+overlap cycling, editor-bar commands and moving/resizing across two screens on
+the installed signed app. The user-observed 250 MB has not yet been measured
+against this change.
 
 ## Installed maintained fork
 

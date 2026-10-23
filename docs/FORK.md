@@ -4,8 +4,9 @@ The canonical source is `/Users/chrisd/Documents/MacsyZonesFork`, on
 `local/maintained`, the fork's default branch. The only installed app belongs at
 `/Applications/MacsyZones.app`. `origin` points to
 <https://github.com/chriscoveries/MacsyZones>; `upstream` points to
-<https://github.com/rohanrhu/MacsyZones>. Keep upstream contributions on the
-separate branches listed in [PULL_REQUESTS.md](PULL_REQUESTS.md).
+<https://github.com/rohanrhu/MacsyZones>. Historical contributions are listed
+in [PULL_REQUESTS.md](PULL_REQUESTS.md); newer fork-only work is organised in
+[UPSTREAM_SERIES.md](UPSTREAM_SERIES.md) for possible future review.
 
 The maintained branch is rebased onto upstream 3.1.1, which incorporated the
 idle animation, duplicate startup layout load, lazy layout lifecycle and

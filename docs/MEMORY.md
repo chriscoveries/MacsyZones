@@ -9,10 +9,12 @@ have been tested in the running app and reviewed for upstream suitability.
 - `UserLayout` creates an AppKit window graph lazily. A hidden layout keeps its
   graph for fast reopening. Cache eviction would trade latency for memory; it
   needs measurements and a defined policy before implementation.
-- `LayoutWindow` owns a full-screen overlay, an editor bar and two NSWindows
-  per zone. Their hosting views retain SwiftUI models. A retired zone must
-  detach its child windows and release the hosting views. `SectionWindow`
-  references its parent weakly; button callbacks also capture the parent weakly.
+- `LayoutWindow` owns a full-screen overlay and one snap-overlay NSWindow per
+  zone. Entering **Edit Zones** creates the interactive editor NSWindows and
+  toolbar on demand. Leaving editing detaches and closes them, releasing their
+  SwiftUI hosting views. This saves the editor graph in the normal snapping
+  path, including after an editing session. `SectionWindow` references its
+  parent weakly; button callbacks also capture the parent weakly.
 - Removing a layout calls `UserLayout.dispose()`. Both zone and grid layouts
   close their windows, while normal `hide()` preserves caches. Deleting an
   unsaved zone or cancelling an added zone also releases its editor windows.
@@ -21,6 +23,11 @@ have been tested in the running app and reviewed for upstream suitability.
 - `WindowObserverManager` keeps AX observers for running applications and
   removes them on application termination. Observe its size over a long session
   before changing observation coverage or sacrificing responsiveness.
+
+Lazy editor creation trades a small **Edit Zones entry cost** for a lower idle
+footprint. It does not defer snap-overlay construction or window observation;
+those stay ready for fast dragging. If editor entry feels slow on the Mac,
+profile construction before considering a short-lived editor cache.
 
 ## Measurements pending on the canonical Mac
 
@@ -34,7 +41,9 @@ Capture a stable baseline after launch and repeat each workload three times:
    `vmmap` physical footprint for the single installed MacsyZones PID.
 2. Open and close the tray and QuickSnapper repeatedly, then wait two minutes.
 3. Enter and cancel zone editing 20 times, adding and deleting a temporary zone
-   each time. Repeat with Save. Count NSWindows and NSHostingViews in Instruments.
+   each time. Repeat with Save. Count NSWindows and NSHostingViews in Instruments;
+   after leaving Edit Zones there should be no retained editor windows, and
+   the next entry should recreate them correctly.
 4. Duplicate and delete a temporary zone layout and a temporary grid layout;
    observe whether retained editor windows return to the pre-test count.
 5. Cycle all saved layouts, then idle again. A steady retained cache differs
@@ -50,10 +59,17 @@ The target is to eliminate retention after deletion and keep drag/snap latency
 fast. A lower idle footprint would be valuable, but the current code changes
 have **no measured MB saving** yet. Do not promise a percentage reduction.
 
+For the lazy editor specifically, record time from the Edit Zones command to
+all editor windows appearing. Check first and subsequent entries separately.
+Exercise overlapping-zone cycling, resize, smart gap, Save, Cancel and a
+screen change before relying on the result.
+
 ## Upstream readiness
 
 Review the teardown changes for AppKit child-window lifetime, SwiftUI hosting
 view ownership, timer cancellation and re-entry after editing. Confirm a clean
 Release build, model checks, and GUI behaviour on one and two displays.
 Prepare a focused diff against current upstream with a minimal reproducer and
-before/after measurements. Ask Chris before creating or pushing any upstream PR.
+before/after measurements. The proposed contribution order is in
+[UPSTREAM_SERIES.md](UPSTREAM_SERIES.md). Ask Chris before creating or pushing
+any upstream PR.
