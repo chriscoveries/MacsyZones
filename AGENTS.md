@@ -33,3 +33,8 @@ installation, startup, or upstream branches.
   tip before changing the maintained branch's history.
 - Other agents may be working here. Preserve their changes, coordinate ownership,
   and avoid switching shared branches or touching unrelated repositories.
+- This is a human-maintained upstream project. Preserve Oğuzhan Eroğlu's
+  authorship and license headers, keep changes reviewable, and explain unusual
+  AppKit/Accessibility ownership and timing rules in short nearby code comments.
+  Describe performance hypotheses as hypotheses until measured on the installed
+  Mac. No upstream PR or communication without Chris's explicit permission.

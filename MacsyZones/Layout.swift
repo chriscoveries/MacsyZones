@@ -687,7 +687,9 @@ class SectionWindow: Hashable, ObservableObject {
     @Published var windowSize: CGSize = .zero
     
     var editorWindow: NSWindow!
-    var layoutWindow: LayoutWindow!
+    // The layout owns its sections. Keep the parent reference non-owning so
+    // removing a layout can release its complete editor/overlay graph.
+    weak var layoutWindow: LayoutWindow!
     var window: NSWindow!
     var sectionConfig: SectionConfig
     var editorWindowDelegate: EditorSectionWindowDelegate?
@@ -802,6 +804,22 @@ class SectionWindow: Hashable, ObservableObject {
     
     func stopEditing() {
         editorWindow.orderOut(nil)
+    }
+
+    // This is terminal cleanup for a removed zone. orderOut alone retains the
+    // SwiftUI hosting views and AppKit child windows, including their models.
+    // Never call this when merely hiding a zone for a normal snap.
+    func dispose() {
+        window.orderOut(nil)
+        editorWindow.orderOut(nil)
+        layoutWindow?.window.removeChildWindow(window)
+        layoutWindow?.window.removeChildWindow(editorWindow)
+        window.contentView = nil
+        editorWindow.contentView = nil
+        editorWindow.delegate = nil
+        editorWindowDelegate = nil
+        window.close()
+        editorWindow.close()
     }
     
     static func == (lhs: SectionWindow, rhs: SectionWindow) -> Bool {
@@ -978,12 +996,12 @@ class LayoutWindow: ObservableObject {
         
         let hostingView = NSHostingView(rootView: EditorBarView(
             layoutWindow: self, 
-            onNewSection: onNewSection, 
+            onNewSection: { [weak self] in self?.onNewSection() },
             onSmartPadding: { [weak self] in
                 self?.applySmartPadding()
             },
-            onSave: onSave, 
-            onCancel: onCancel
+            onSave: { [weak self] in self?.onSave() },
+            onCancel: { [weak self] in self?.onCancel() }
         ))
         editorBarWindow.contentView = hostingView
         editorBarHostingView = hostingView
@@ -998,7 +1016,9 @@ class LayoutWindow: ObservableObject {
         
         for i in 0..<sectionConfigs.count {
             let sectionConfig = sectionConfigs[i]
-            let sectionWindow = SectionWindow(number: sectionConfig.number!, layoutWindow: self, sectionConfig: sectionConfig, onDelete: onSectionDelete)
+            let sectionWindow = SectionWindow(number: sectionConfig.number!, layoutWindow: self, sectionConfig: sectionConfig, onDelete: { [weak self] section in
+                self?.onSectionDelete(section)
+            })
             
             self.sectionConfigs[sectionConfig.number!] = sectionConfig
             sectionWindows.append(sectionWindow)
@@ -1371,7 +1391,7 @@ class LayoutWindow: ObservableObject {
         return result
     }
     
-    func onSectionDelete(unowned sectionWindow: SectionWindow) {
+    func onSectionDelete(_ sectionWindow: SectionWindow) {
         let number = sectionWindow.number
         
         sectionWindow.window.orderOut(nil)
@@ -1388,6 +1408,13 @@ class LayoutWindow: ObservableObject {
         
         sectionWindows.removeAll { $0.number == number }
         unsavedNewSectionWindows.removeAll { $0.number == number }
+
+        // New sections have no saved state to restore on Cancel. Release their
+        // AppKit children now; saved sections remain available for undo until
+        // the editing session is saved or cancelled.
+        if isUnsaved {
+            sectionWindow.dispose()
+        }
         
         refreshEditorBarState()
     }
@@ -1396,7 +1423,9 @@ class LayoutWindow: ObservableObject {
         let number = nextNumber
         var newSectionConfig = SectionConfig.defaultSection
         newSectionConfig.number = number
-        let sectionWindow = SectionWindow(number: number, layoutWindow: self, sectionConfig: newSectionConfig, onDelete: onSectionDelete)
+        let sectionWindow = SectionWindow(number: number, layoutWindow: self, sectionConfig: newSectionConfig, onDelete: { [weak self] section in
+            self?.onSectionDelete(section)
+        })
         sectionWindows.append(sectionWindow)
         
         sectionWindow.editorWindow.orderFront(nil)
@@ -1455,6 +1484,12 @@ class LayoutWindow: ObservableObject {
         userLayouts.layouts[name]?.sectionConfigs = sectionConfigs
         
         userLayouts.save()
+
+        // A saved deletion is final. The retired NSWindows would otherwise
+        // remain attached to the parent layout even after leaving the array.
+        for removedSection in unsavedRemovedSectionWindows {
+            removedSection.dispose()
+        }
         
         unsavedNewSectionConfigs.removeAll()
         unsavedNewSectionWindows.removeAll()
@@ -1692,7 +1727,10 @@ class LayoutWindow: ObservableObject {
         }
         
         for unsavedSectionWindow in unsavedNewSectionWindows {
-            sectionWindows.removeAll(where: { $0.number == unsavedSectionWindow.number })
+            // A newly added zone can reuse a just-deleted zone's number.
+            // Remove by identity so cancelling restores the original zone.
+            sectionWindows.removeAll(where: { $0 === unsavedSectionWindow })
+            unsavedSectionWindow.dispose()
         }
         
         unsavedNewSectionConfigs.removeAll()
@@ -1710,11 +1748,36 @@ class LayoutWindow: ObservableObject {
     }
     
     func closeAllWindows() {
-        for sectionWindow in sectionWindows {
-            sectionWindow.window.close()
-            sectionWindow.editorWindow.close()
+        // Terminal disposal when the user deletes a layout. Hidden windows
+        // deliberately stay cached during ordinary switching for speed.
+        if let monitor = mouseMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseMonitor = nil
         }
-        
+
+        for resizer in sectionResizers {
+            resizer.resizeTask?.cancel()
+            resizer.resizeTask = nil
+            resizer.mouseUpTask?.cancel()
+            resizer.mouseUpTask = nil
+            resizer.relatedSections.removeAll()
+            resizer.contentView = nil
+            resizer.close()
+        }
+        sectionResizers.removeAll()
+        activeSnapResizers.removeAll()
+
+        // Cancelled/deleted sections can sit outside the active array.
+        for sectionWindow in sectionWindows + unsavedRemovedSectionWindows {
+            sectionWindow.dispose()
+        }
+        sectionWindows.removeAll()
+        unsavedNewSectionWindows.removeAll()
+        unsavedRemovedSectionWindows.removeAll()
+        unsavedNewSectionConfigs.removeAll()
+
+        editorBarWindow.contentView = nil
+        editorBarHostingView = nil
         window.close()
         editorBarWindow.close()
     }
@@ -2150,6 +2213,15 @@ class GridLayoutWindow {
 
         window.orderOut(nil)
         selectionState.reset()
+    }
+
+    // Dropping the SwiftUI backing view is only appropriate when the layout
+    // is deleted. Keeping it while merely hidden avoids rebuilding the grid.
+    func dispose() {
+        isShown = false
+        window.orderOut(nil)
+        window.contentView = nil
+        window.close()
     }
 
     func setAnchorAtMousePosition() {

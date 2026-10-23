@@ -165,6 +165,8 @@ class UserLayout {
         }
     }
 
+    // Cache the materialized graph during normal layout switching. Only
+    // dispose() tears it down after deletion, preserving snap responsiveness.
     private var storedLayoutWindow: LayoutWindow?
 
     var materializedLayoutWindow: LayoutWindow? { storedLayoutWindow }
@@ -297,6 +299,15 @@ class UserLayout {
         case .grid:
             materializedGridLayoutWindow?.hide()
         }
+    }
+
+    // A deleted layout must release its AppKit windows. Normal layout
+    // switches use hide() and keep the materialized graph ready for fast use.
+    func dispose() {
+        storedLayoutWindow?.closeAllWindows()
+        storedLayoutWindow = nil
+        storedGridLayoutWindow?.dispose()
+        storedGridLayoutWindow = nil
     }
 }
 
@@ -634,7 +645,7 @@ class UserLayouts: UserData, ObservableObject {
         if layouts.count < 2 { return }
         
         if let layout = layouts[currentLayoutName] {
-            layout.materializedLayoutWindow?.closeAllWindows()
+            layout.dispose()
             
             layouts.removeValue(forKey: currentLayoutName)
             

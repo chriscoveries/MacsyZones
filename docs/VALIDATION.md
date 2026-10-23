@@ -84,6 +84,24 @@ isolated test compilation failed. The fixture now models that helper and
 asserts cancellation for cold-layout editing paths. Re-run the model tests on
 the amended commit before treating CI as passing.
 
+## Window teardown and memory — 2026-10-24
+
+The source review found retained window graphs after deleting a grid layout
+and after deleting or cancelling editor zones. Terminal teardown now detaches
+zone child windows, releases SwiftUI hosting views, removes resizer callbacks
+and the layout's mouse monitor, and closes the grid backing window. Section
+backreferences and editor callbacks no longer strongly own their parent.
+Ordinary layout hiding remains cached to preserve fast switching. The updated
+lazy-layout model tests check disposal of cold and warm zone/grid graphs and
+re-creation after disposal (144 assertions); macOS CI and live UI validation
+are pending for this follow-up.
+
+Capture the user-observed ~250 MB baseline with the same Activity Monitor
+metric before and after installing this source. Repeat create/delete/save/cancel
+editing, switch among layouts, test live snap resizers, and use Instruments to
+count retained NSWindow/NSHostingView objects. See [MEMORY.md](MEMORY.md).
+No MB reduction has yet been measured.
+
 ## Installed maintained fork
 
 The installed app is `/Applications/MacsyZones.app`, source revision

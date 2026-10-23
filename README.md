@@ -1,6 +1,8 @@
 # MacsyZones
 
-Maintained personal fork of [rohanrhu/MacsyZones](https://github.com/rohanrhu/MacsyZones), a FancyZones-style window-layout app for macOS. The maintained branch incorporates upstream 3.1.1, preserves a working Tahoe menu-bar identity, keeps native start-at-login registration, and supplies reproducible local builds protected against replacement by upstream updates. Its snapping path also avoids redundant delayed window writes. Maintained branch: `local/maintained`. Details: [FORK.md](docs/FORK.md), [PULL_REQUESTS.md](docs/PULL_REQUESTS.md), [VALIDATION.md](docs/VALIDATION.md).
+Maintained personal fork of [rohanrhu/MacsyZones](https://github.com/rohanrhu/MacsyZones), a FancyZones-style window-layout app for macOS created and maintained by **Oğuzhan Eroğlu**. Thank you to Oğuzhan for the original app and continued upstream work. The project, licensing and support links below are his; our local changes remain experimental and have not been submitted upstream.
+
+The maintained branch incorporates upstream 3.1.1, preserves a working Tahoe menu-bar identity, keeps native start-at-login registration, and supplies reproducible local builds protected against replacement by upstream updates. Its snapping path also avoids redundant delayed window writes. Maintained branch: `local/maintained`. Details: [FORK.md](docs/FORK.md), [PULL_REQUESTS.md](docs/PULL_REQUESTS.md), [VALIDATION.md](docs/VALIDATION.md), [MEMORY.md](docs/MEMORY.md).
 
 [![GitHub release](https://img.shields.io/github/release/rohanrhu/MacsyZones.svg?style=flat-square&color=informational)](https://github.com/rohanrhu/MacsyZones/releases)
 [![GitHub stars](https://img.shields.io/github/stars/rohanrhu/MacsyZones?style=flat-square)](https://github.com/rohanrhu/MacsyZones/stargazers)

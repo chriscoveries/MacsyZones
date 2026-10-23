@@ -401,6 +401,8 @@ func onWindowMoved(element: AXUIElement) {
     
     if NSEvent.pressedMouseButtons & 1 != 0 {
         isMovingAWindow = true
+        // The AX move notification confirms a real window drag. Starting the
+        // snap timer here avoids showing zones during text or content drags.
         checkSnapKeyOnWindowMoveStart()
         
         if appSettings.enableLayoutSwitcher && !isFitting,

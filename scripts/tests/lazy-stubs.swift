@@ -29,6 +29,7 @@ final class LayoutWindow {
     var hideCalls = 0
     var startEditingCalls = 0
     var stopEditingCalls = 0
+    var closeAllWindowsCalls = 0
     let window = FakeWindow()
     init(name: String, sectionConfigs: [SectionConfig]) {
         Self.allocations += 1
@@ -42,6 +43,7 @@ final class LayoutWindow {
     func hide() { hideCalls += 1; isShown = false }
     func startEditing() { startEditingCalls += 1 }
     func stopEditing() { stopEditingCalls += 1 }
+    func closeAllWindows() { closeAllWindowsCalls += 1 }
 }
 final class GridLayoutWindow {
     static var allocations = 0
@@ -50,12 +52,14 @@ final class GridLayoutWindow {
     var isShown = false
     var showCalls = 0
     var hideCalls = 0
+    var disposeCalls = 0
     init(name: String, gridConfig: GridConfig) {
         Self.allocations += 1
         self.name = name; self.gridConfig = gridConfig
     }
     func show() { showCalls += 1; isShown = true }
     func hide() { hideCalls += 1; isShown = false }
+    func dispose() { disposeCalls += 1 }
 }
 final class FakeUserLayouts { var currentLayout: UserLayout! }
 let userLayouts = FakeUserLayouts()

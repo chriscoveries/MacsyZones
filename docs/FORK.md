@@ -15,6 +15,11 @@ replacement, and the local build and startup workflow. The snapping path also
 uses conditional, supersedable corrections and direct zone-frame conversion.
 None of this implies that the newly rebased source is installed on the Mac.
 
+The upstream project is maintained by Oğuzhan Eroğlu. Keep fork-specific
+packaging and personal paths out of any future upstream proposals. Follow the
+human-review and measurement approach in [MEMORY.md](MEMORY.md) before claiming
+lower memory use or proposing window-lifecycle changes upstream.
+
 ## Identity and provenance
 
 Preserve bundle ID `local.chrisd.macsyzones.20260903` and signing team
