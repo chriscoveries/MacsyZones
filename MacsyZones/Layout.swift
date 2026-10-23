@@ -1589,6 +1589,9 @@ class LayoutWindow: ObservableObject {
         sectionResizers = sectionResizers.filter { $0.isMouseOverResizer }
         
         for sectionWindow in sectionWindows {
+            if sectionWindow.isHovered {
+                sectionWindow.isHovered = false
+            }
             sectionWindow.window.orderOut(nil)
             sectionWindow.editorWindow.orderOut(nil)
         }

@@ -36,6 +36,10 @@ and window recovery only queries the owning PID's AX window list. A fresh
 manual drag cancels any remaining frame correction for that same window ID.
 Repeated window scans now check the already-observed window ID before asking
 the app for AX role/subrole, and unchanged overlay frames skip `setFrame`.
+The release handler now resolves the hovered zone at mouse-up and clears its
+saved target state at both mouse-down and mouse-up. Previously an out-of-zone
+release could reuse the last hovered zone, including across drags. Hiding a
+layout now also clears its hover highlight explicitly.
 
 These are source-path and animation-duration comparisons, **not measured wall
 clock improvements**. The CI Release build and model checks validate the Swift

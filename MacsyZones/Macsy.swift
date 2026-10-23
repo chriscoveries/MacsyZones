@@ -89,6 +89,9 @@ let spaceLayoutPreferences = SpaceLayoutPreferences()
 func onMouseDown(event: NSEvent) {
     draggedWindowElement = nil
     draggedWindowInitialPosition = nil
+    toLeaveElement = nil
+    toLeaveSectionWindow = nil
+    toLeaveGridRect = nil
 
     if let preferredLayoutName = spaceLayoutPreferences.getCurrent() {
         userLayouts.currentLayoutName = preferredLayoutName
@@ -784,6 +787,14 @@ func onMouseDragged(event: NSEvent) {
 func onMouseUp(event: NSEvent) {
     guard macsyReady.isReady else { return }
 
+    defer {
+        draggedWindowElement = nil
+        draggedWindowInitialPosition = nil
+        toLeaveElement = nil
+        toLeaveSectionWindow = nil
+        toLeaveGridRect = nil
+    }
+
     // Hide the layout switcher regardless of mode (actualMode or directMode).
     layoutSwitcherPanel.hide()
 
@@ -811,15 +822,12 @@ func onMouseUp(event: NSEvent) {
     case .grid:
         handleGridMouseUp()
     }
-
-    draggedWindowElement = nil
-    draggedWindowInitialPosition = nil
 }
 
 private func handleZoneMouseUp() {
-    if let hoveredSectionWindow = getHoveredSectionWindow() {
-        toLeaveSectionWindow = hoveredSectionWindow
-    }
+    // Choose the zone under the release point. Keeping the last hovered zone
+    // can snap a window after the cursor has already left every zone.
+    toLeaveSectionWindow = getHoveredSectionWindow()
 
     // Mirror handleGridMouseUp: resolve the element from multiple fallback sources
     // so snap still works even if onWindowMoved didn't set toLeaveElement.
