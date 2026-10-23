@@ -62,3 +62,8 @@ let userLayouts = FakeUserLayouts()
 var isFitting = false
 var isEditing = false
 func setIsFitting(_ value: Bool) { isFitting = value }
+var snapResetCalls = 0
+func resetSnapKeyActivation(hideOverlay: Bool = false) {
+    precondition(hideOverlay, "editing must dismiss a pending snap overlay")
+    snapResetCalls += 1
+}

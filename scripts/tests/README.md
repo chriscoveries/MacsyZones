@@ -12,9 +12,10 @@ changes. It does not depend on a fork-specific branch or revision. Missing,
 duplicate, or out-of-order extraction markers fail the run before Swift starts.
 The optional argument selects a separate source root for isolated test fixtures.
 
-The 139 assertions exercise cold zone/grid layouts, nonmaterializing hide and
+The 140 assertions exercise cold zone/grid layouts, nonmaterializing hide and
 stop-editing paths, configuration updates, first-show allocation, repeated
-show/hide reuse, window cleanup, and independence of unselected layouts.
+show/hide reuse, window cleanup, snap-key cancellation in editing, and
+independence of unselected layouts.
 Window collaborators are lightweight fakes; the production lifecycle code is
 not copied into the test fixtures. A temporary combined Swift file is removed
 on exit. No application is built or launched, and no preferences are read or

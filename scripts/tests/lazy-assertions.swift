@@ -19,6 +19,7 @@ for layout in zones + grids {
     expect(toggleEditing() == false && !isFitting, "toggleEditing stop branch resets state")
 }
 expect(LayoutWindow.allocations == 0 && GridLayoutWindow.allocations == 0, "hide and stop-editing operations never materialize cold graphs")
+expect(snapResetCalls == 80, "stopEditing and toggleEditing cancel snap-key activation for cold layouts")
 
 let zone = zones[0]
 zone.name = "renamed while cold"

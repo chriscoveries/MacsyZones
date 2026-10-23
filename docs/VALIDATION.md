@@ -78,6 +78,12 @@ unmodified clicks, modifier-click outside overlaps, and custom Snap Key and
 Modifier Key settings. Build-only CI cannot verify event routing or window
 stacking in a live macOS session.
 
+The first CI build compiled both architectures. Its lazy-layout model fixture
+did not yet define the newly called snap-key cancellation helper, so the
+isolated test compilation failed. The fixture now models that helper and
+asserts cancellation for cold-layout editing paths. Re-run the model tests on
+the amended commit before treating CI as passing.
+
 ## Installed maintained fork
 
 The installed app is `/Applications/MacsyZones.app`, source revision
